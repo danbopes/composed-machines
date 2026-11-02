@@ -44,7 +44,9 @@ rs=(rsync -a --delete --prune-empty-dirs)
   "$comp/bench/" "$repo/bench/"
 
 mkdir -p "$repo/docs"
-cp "$comp/design/TEST-ENTITIES.md" "$comp/design/TEST-ENTITIES-2.md" "$repo/docs/"
+rm -f "$repo/docs/TEST-ENTITIES.md"
+cp "$comp/design/ENTITIES-public.md" "$repo/docs/ENTITIES.md"
+cp "$comp/design/TEST-ENTITIES-2.md" "$repo/docs/TEST-ENTITIES-2.md"
 
 # Make the copied tree self-contained: no absolute paths into the working
 # machine, no references to the private notes it was produced alongside.
@@ -86,9 +88,12 @@ sanitize() {
     -e 's#^This is a private model, not Factorio\.#This is a model, not Factorio.#' \
     "$m/RESULTS.md"
   sed -i -E -e 's# \(V2-PARTS section 5 item 2\)##' "$m/RESULTS-v2.md"
+  sed -i -E -e 's#`CraftingMachine::update`#the crafting-machine update#g; s#`EntityOrderList<[^`]*>::update`#the engine\x27s per-type update loop#g' "$m/RESULTS.md" "$m/RESULTS-v2.md" "$m/README.md"
+  sed -i -E -e 's#docs/TEST-ENTITIES\.md#docs/ENTITIES.md#g' "$repo/README.md" "$b/README.md" "$b/RESULTS.md" "$b/RESULTS.notes.md" 2>/dev/null || true
 
   local note='> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.'
-  for f in "$d/TEST-ENTITIES.md" "$d/TEST-ENTITIES-2.md"; do
+  sed -i -E 's#conventions as `TEST-ENTITIES\.md`#conventions as the first pass (`ENTITIES.md`)#' "$d/TEST-ENTITIES-2.md"
+  for f in "$d/ENTITIES.md" "$d/TEST-ENTITIES-2.md"; do
     sed -i -E \
       -e 's#^Private\. Eight entities#Eight entities#' \
       -e 's#^Private draft, 2026-11-02\.#Draft, 2026-11-02.#' \
@@ -109,6 +114,7 @@ if (( with_mod )); then
     "$comp/mod/component-lab/" "$repo/mod/component-lab/"
   "${rs[@]}" "$harness/suites/component-lab/" "$repo/harness/suites/component-lab/"
   cp "$harness/projects/component-lab.json" "$repo/harness/component-lab.json"
+  sed -i -E 's#"source": *"[^"]*"#"source": "../mod/component-lab"#' "$repo/harness/component-lab.json"
   rm -f "$repo/mod/README.md" "$repo/harness/README.md"
 fi
 

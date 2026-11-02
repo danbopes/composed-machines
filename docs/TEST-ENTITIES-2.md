@@ -5,7 +5,7 @@
 Draft, 2026-11-02. Each entity is a thing a mod author asked for or gave up on, written first as it would look in the proposed API
 (`SPEC.md` v1; `V2-PARTS.md` where a v2 part is needed), then as `component-lab` has to fake it today, with the
 assertions the harness makes and the native entity it is benchmarked against. Builders follow the same
-conventions as `TEST-ENTITIES.md`: own three files, own workspace, no edits to the library; a limit the
+conventions as the first pass (`ENTITIES.md`): own three files, own workspace, no edits to the library; a limit the
 emulation cannot cross is a named `KNOWN-LIMIT` test, not a silent skip. Each builder also writes the two
 benchmark cells (`bench/builds/<name>.lua` and `bench/builds/native-<name>.lua`) in the `CELL = {w, h, place}`
 form of the existing files, and the integrator registers them in `make_save.py`.

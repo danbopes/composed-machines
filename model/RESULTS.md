@@ -5,8 +5,8 @@ Factorio-like tick under four architectures with the same workload, and checks t
 four end in the same world state.
 
 - **A STATIC** (Factorio today): `Container` (passive), `Furnace`, `AssemblingMachine`
-  (both share `CraftingMachine::update`), `Inserter`. Each type has its own bucket, and the
-  bucket loops call `update` statically, the way `EntityOrderList<...>::update` does. Every
+  (both share the crafting-machine update), `Inserter`. Each type has its own bucket, and the
+  bucket loops call `update` statically, the way the engine's per-type update loop does. Every
   machine and inserter owns a heap-allocated `EnergySource*` (Electric or Burner) and calls
   it virtually.
 - **B COMPOSED** (the proposal, runtime parts): one `final` `ComposedMachine` class. Its

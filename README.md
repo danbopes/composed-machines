@@ -29,7 +29,7 @@ number of instances.
 From `bench/RESULTS.md` section (b). N = 2000 instances, ns per instance per
 tick. "whole" is Factorio's `wholeUpdate`; "e+s+gc" is `entityUpdate` +
 `scriptUpdate` + `luaGarbageIncremental`. Ratio is composed / native on whole.
-The entity specs are in `docs/TEST-ENTITIES.md`.
+The entity specs are in `docs/ENTITIES.md`.
 
 | composed | native comparison | composed whole | native whole | ratio | composed e+s+gc | native e+s+gc | composed scriptUpdate ns |
 |---|---|---|---|---|---|---|---|
@@ -293,7 +293,7 @@ benchmarking plus about 40 minutes of world builds.
 - **The emulation can over-count.** For the cold box, the emulation's spoil
   pass is a per-tick Lua loop, while a native implementation would re-stamp
   spoil time once per transfer and cost nothing per tick; its 35x is an upper
-  bound, not a prediction (`docs/TEST-ENTITIES.md`, cold box calibration).
+  bound, not a prediction (`docs/ENTITIES.md`, cold box calibration).
 - **The model is a model.** It is not Factorio's code. Its 1M-entity figures
   are memory-bound and moved by about 10% between runs on the shared L3. Its
   conclusions are about layout and dispatch, not absolute cost.
@@ -318,7 +318,7 @@ bench/builds/      one Lua builder per world; _common/_grid/_cells are shared
 bench/census-mod/  one-tick mod that counts entities by prototype in a save
 bench/results/     raw results: one JSON line per benchmark run, census JSON per pY save
 bench/RESULTS.md   generated report (sections a-d) plus the hand-written notes
-docs/              TEST-ENTITIES.md, TEST-ENTITIES-2.md: specs of the emulated entities
+docs/              ENTITIES.md (all sixteen emulated entities, summary), TEST-ENTITIES-2.md (second-pass specs)
 mod/               component-lab, the Lua reference mod (filled by sync.sh)
 harness/           the mod's test suites and harness project file (filled by sync.sh)
 ```

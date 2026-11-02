@@ -195,7 +195,7 @@ missing saves, benchmarks everything with `taskset -c 8-11` (override with
 plus about 40 min of builds if nothing is built yet.
 
 - `builds/cl-*.lua` place N of each component-lab test entity
-  (`../docs/TEST-ENTITIES.md`) in a working setup, built with
+  (`../docs/ENTITIES.md`) in a working setup, built with
   `raise_built = true` so the library makes the hidden parts. Each one has a
   `builds/native-*.lua` twin in the same layout, or reuses a matrix variant.
   `make_save.PAIRS` holds the mapping. `builds/_grid.lua` is the driver, and

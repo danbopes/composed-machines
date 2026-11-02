@@ -155,7 +155,7 @@ All figures come from one 5-run pass pinned to CPUs 8-11, with the baloo indexer
   - Native seep derrick: base has no one-fluid-to-one-fluid assembler recipe, so its twin is a chemical plant on lubricant (1 s cycle vs the derrick's 2 s).
   - Native fuelled chest: its twin uses the emulation's own hidden reactor prototype with no script attached.
   - Per-instance figures subtract an empty world and include the cell's feeding entities, which are identical between each pair.
-- **pY:** the family census for all three saves is below. The 3600-tick pY benchmark was paused before it ran, so the census has no script timings next to it yet. The only pY timing so far is the 300-tick validation of pY 134 on a busy box: 19.95 ms/update, scriptUpdate 2.20 ms.
+- **pY:** the family census for all three saves is below, and the 3600-tick timings are in section (d) and the pY paragraph at the end of these notes (an earlier 300-tick validation of pY 134 on a busy box gave 19.95 ms/update).
 - **mulark:** the 1.1-era inserter/assembler maps run at 0.70-3.95 ms/update with stable spreads (1-9%). test-000060 (400x direct-insertion chains) spends 3.9 ms, mostly in the AssemblingMachine and Inserter columns.
 
 - **pY saves (section d).** Three real bases, each run with its own mod set (73-76 mods): pY 134 at 6.12 ms per
