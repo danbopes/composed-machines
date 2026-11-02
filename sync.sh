@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Re-copy the published parts of the private working tree into this repository.
+#
+# Usage: ./sync.sh [--no-mod] [SRC_ROOT]
+#   --no-mod   skip mod/ and harness/ (copy only model/, bench/ and docs/)
+#   SRC_ROOT   the factorio directory holding component/ and ai-harness/
+#              (default: the parent of this repository)
+#
+# Idempotent: every target is synced with rsync --delete, so files removed at the
+# source disappear here too. Build outputs, saves, run directories and scratch
+# space are never copied.
+set -euo pipefail
+
+with_mod=1
+if [[ "${1:-}" == "--no-mod" ]]; then with_mod=0; shift; fi
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then sed -n '2,12p' "$0"; exit 0; fi
+
+repo="$(cd "$(dirname "$0")" && pwd)"
+src="${1:-$(dirname "$repo")}"
+comp="$src/component"
+harness="$src/ai-harness"
+
+[[ -d "$comp" ]] || { echo "no component/ under $src" >&2; exit 1; }
+
+rs=(rsync -a --delete --prune-empty-dirs)
+
+"${rs[@]}" \
+  --exclude 'scratch/' --exclude '*.o' --exclude '/model' --exclude '/model-clang' \
+  --include '*/' --include '*.cpp' --include '*.h' --include '*.hpp' \
+  --include 'Makefile' --include 'run.sh' --include '*.md' \
+  --exclude '*' \
+  "$comp/model/" "$repo/model/"
+
+"${rs[@]}" \
+  --exclude 'saves/' --exclude 'runs/' --exclude 'scratch/' --exclude '__pycache__/' \
+  --include '/benchlib.py' --include '/make_save.py' --include '/run_bench.py' \
+  --include '/bench_save.py' --include '/suite.py' --include '/census_save.py' \
+  --include '/fetch_mulark.py' --include '/report.py' --include '/measure.sh' \
+  --include '/RESULTS.md' --include '/RESULTS.notes.md' --include '/README.md' \
+  --include '/builds/' --include '/builds/**' \
+  --include '/census-mod/' --include '/census-mod/**' \
+  --include '/results/' --include '/results/*.jsonl' --include '/results/*.census.json' \
+  --exclude '*' \
+  "$comp/bench/" "$repo/bench/"
+
+mkdir -p "$repo/docs"
+cp "$comp/design/TEST-ENTITIES.md" "$comp/design/TEST-ENTITIES-2.md" "$repo/docs/"
+
+# Make the copied tree self-contained: no absolute paths into the working
+# machine, no references to the private notes it was produced alongside.
+sanitize() {
+  local b="$repo/bench" d="$repo/docs" m="$repo/model"
+  local gone='a pY mod survey that is not included here'
+
+  sed -i -E \
+    -e 's#"/[^"]*/component/bench/(saves/)#"\1#g' \
+    -e 's#"host": "[^"]*"#"host": "bench-host"#g' \
+    -e 's#\(\w+ \+ C\+\+ bench#(other analysis + C++ bench#g' \
+    "$b"/results/*.jsonl "$b"/results/*.census.json
+
+  sed -i -E \
+    -e 's#^import json$#import json\nimport os\nimport shutil#' \
+    -e 's#^FACTORIO = Path\("/[^"]*/factorio"\)#FACTORIO = Path(os.environ.get("FACTORIO_DIR", Path.home() / "factorio"))#' \
+    -e 's#^FH = Path\("/[^"]*/bin/fh"\)#FH = Path(os.environ.get("FH") or shutil.which("fh") or "fh")#' \
+    -e 's#FACTORIO / "component/mod"#BENCH.parent / "mod"#' \
+    "$b/benchlib.py"
+
+  sed -i -E \
+    -e 's#"/[^"]*/factorio/saves/#"${FACTORIO_DIR:-$HOME/factorio}/saves/#g' \
+    "$b/measure.sh"
+
+  sed -i -E \
+    -e "s#\(?\`?[a-z]+/pyanodons\.md\`?\)?#($gone)#g" \
+    -e 's#component/design/TEST-ENTITIES\.md#../docs/TEST-ENTITIES.md#g' \
+    -e "s# \(maybe another agent's\)##; s# \(another agent's\)##" \
+    -e 's#"/[^"]*/factorio/saves/#"$FACTORIO_DIR/saves/#g' \
+    -e 's#^cd ~/factorio/component/bench$#cd bench#' \
+    -e 's#^\(pY\) benchmarked with their own mod list\. Private analysis\.#(pY) benchmarked with their own mod list.#' \
+    -e 's#^Taken 2026-11-01 with a \w+ analysis, a C\+\+ benchmark#Taken 2026-11-01 with other analysis work, a C++ benchmark#' \
+    -e 's#^They stay private here\.#They are not included in this repository.#' \
+    "$b"/README.md "$b"/RESULTS.md "$b"/report.py "$b"/census_save.py "$b"/make_save.py
+  # census_save.py's docstring reads "families that <x> lists"
+  sed -i -E "s#families that \\($gone\\) lists#families that a pY mod survey (not included here) lists#" "$b/census_save.py"
+
+  sed -i -E \
+    -e 's#^This is a private model, not Factorio\.#This is a model, not Factorio.#' \
+    "$m/RESULTS.md"
+  sed -i -E -e 's# \(V2-PARTS section 5 item 2\)##' "$m/RESULTS-v2.md"
+
+  local note='> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.'
+  for f in "$d/TEST-ENTITIES.md" "$d/TEST-ENTITIES-2.md"; do
+    sed -i -E \
+      -e 's#^Private\. Eight entities#Eight entities#' \
+      -e 's#^Private draft, 2026-11-02\.#Draft, 2026-11-02.#' \
+      -e 's#`component/mod/component-lab`#`mod/component-lab`#g' \
+      -e 's# \(`[a-z]+/RESEARCH\.md`\)##' \
+      "$f"
+    perl -0pi -e 's/ \(citations: `research\/\n?forum-dropped-features\.md`, `research\/github-issues\.md`\)//' "$f"
+    sed -i "1a\\
+\\
+$note" "$f"
+  done
+}
+sanitize
+
+if (( with_mod )); then
+  mkdir -p "$repo/mod" "$repo/harness/suites"
+  "${rs[@]}" --exclude '*.zip' --exclude 'scratch/' \
+    "$comp/mod/component-lab/" "$repo/mod/component-lab/"
+  "${rs[@]}" "$harness/suites/component-lab/" "$repo/harness/suites/component-lab/"
+  cp "$harness/projects/component-lab.json" "$repo/harness/component-lab.json"
+  rm -f "$repo/mod/README.md" "$repo/harness/README.md"
+fi
+
+echo "synced from $src (mod/harness: $([[ $with_mod == 1 ]] && echo yes || echo skipped))"

@@ -1,0 +1,9 @@
+{
+  "name": "bench-census",
+  "version": "0.1.0",
+  "title": "bench census",
+  "author": "component bench",
+  "factorio_version": "2.1",
+  "dependencies": ["base"],
+  "description": "Writes per-surface entity counts by prototype name to script-output when added to a save. Benchmark tooling only; never saved."
+}
