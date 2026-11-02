@@ -1,0 +1,9 @@
+{
+  "name": "component-lab",
+  "version": "0.1.0",
+  "title": "Component Lab",
+  "author": "danbopes",
+  "factorio_version": "2.1",
+  "dependencies": ["base >= 2.1"],
+  "description": "Reference implementation of load-time composed entities, built from hidden engine parts, used to test and benchmark the composed-machine proposal."
+}

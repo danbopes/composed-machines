@@ -12,9 +12,14 @@ rerun.
 There are two halves:
 
 - **bench/**: headless `factorio --benchmark` runs of Factorio 2.1.24. Native
-  entities at two sizes, eight entities built the way mods build compound
+  entities at two sizes, sixteen entities built the way mods build compound
   entities today (hidden entities plus a Lua control script) next to a native
-  twin, five public benchmark maps by mulark, and three large Pyanodon's saves.
+  twin and, where a shipped mod does it another way, next to that workaround,
+  five public benchmark maps by mulark, and three large Pyanodon's saves.
+- **mod/** and **harness/**: `component-lab`, the Lua reference mod that
+  builds those sixteen entities from the proposed prototype format, and its
+  297-test harness suite (288 pass; 9 fail on purpose and document an
+  emulation limit each).
 - **model/**: one C++17 program that runs a Factorio-like tick (chests,
   inserters, furnaces and assemblers on shared electric networks) under several
   object layouts, checks that every layout ends in the same world state, and
@@ -61,6 +66,49 @@ What this shows:
   so their median tick is close to native while the 95th percentile reaches
   5-10 ms. The per-instance figures use the mean, which spreads those spikes
   over all ticks.
+
+### Second pass: eight designs taken from forum and GitHub requests
+
+Same method, 3 runs per save instead of 5. Specs in `docs/TEST-ENTITIES-2.md`.
+Where a shipped mod builds the same thing another way (a polled energy
+interface, an every-tick dispatcher, a hidden beacon with module swaps), that
+rig is a third column.
+
+| composed | comparison | composed whole | comparison whole | ratio | composed scriptUpdate ns |
+|---|---|---|---|---|---|
+| cl-hearth | native-cl-hearth (stone furnace + bare reactor) | 234.3 | 100.8 | 2.32 | 124.7 |
+| cl-hearth | stone-furnace | 234.3 | 54.2 | 4.32 | 124.7 |
+| cl-brazier | native-cl-brazier (bare reactor + lamp) | 111.3 | 53.1 | 2.09 | 60.9 |
+| cl-creep-collector | native-cl-creep-collector (electric furnace) | 389.9 | 49.3 | 7.90 | 6.6 |
+| cl-creep-collector | poll-creep-collector (energy interface polled every 60 ticks) | 389.9 | 194.2 | 2.01 | 6.6 |
+| cl-rotating-chest | native-cl-rotating-chest (two steel chests) | 114.2 | 94.1 | 1.21 | 2.1 |
+| cl-rotating-chest | chests | 114.2 | 1.4 | 78.73 | 2.1 |
+| cl-slag-generator | native-cl-slag-generator (steam engine + stone furnace) | 125.0 | 158.1 | 0.79 | 3.0 |
+| cl-waste-heat-smelter | native-cl-waste-heat-smelter (electric furnace + heat interface) | 122.2 | 112.7 | 1.08 | 3.0 |
+| cl-waste-heat-smelter | reactor-waste-heat-smelter (always-hot nuclear reactor) | 122.2 | 86.7 | 1.41 | 3.0 |
+| cl-mass-driver | native-cl-mass-driver (gear assembler, never idle) | 39.7 | 97.7 | 0.41 | 2.9 |
+| cl-mass-driver | poll-mass-driver (15-tick dispatcher) | 39.7 | 45.4 | 0.88 | 2.9 |
+| cl-tuned-furnace | native-cl-tuned-furnace (`local_effect` written once) | 143.3 | 74.2 | 1.93 | 66.7 |
+| cl-tuned-furnace | beacon-tuned-furnace (hidden beacon + module swap) | 143.3 | 98.0 | 1.46 | 66.7 |
+
+What this adds:
+
+- A handler on the crafted event runs inside the entity update, so its Lua is
+  billed to the `AssemblingMachine` column, not to `scriptUpdate`. The creep
+  collector's harvest is 355 ns per instance there while `scriptUpdate` reads
+  7; every 120 ticks all 2000 shells finish together in a 78 ms tick. This is
+  the likely source of the first pass's unexplained assembler-column gap on
+  the dig site and the seep derrick. Read the two columns together.
+- A recipe-less assembler shell never leaves the update list: the rotating
+  storehouse runs no Lua at all and still costs 18 ns per instance, the same
+  as 2000 working gear assemblers. Its 28,000 proxy doors cost nothing
+  measurable.
+- Ratios under 1 (slag generator, mass driver) mean the comparison twin does
+  more work than the fake, not that the fake is cheap: the gear assembler
+  never pauses, while the mass driver fires once per 10 s.
+- Hearth and brazier run their 20- and 30-tick passes for every record on the
+  same tick (4.4 and 3.2 ms pass ticks over a native-level median); the tuned
+  furnace spreads its pass over five phases and peaks at 1.9 ms.
 
 ## Native matrix
 
@@ -233,7 +281,7 @@ Requirements:
   from this repository as `projects/component-lab.json` (with its `source` pointed at this repository's `mod/component-lab`) and the suite in
   `suites/component-lab/`. Benchmarking an existing save
   (`run_bench.py`, `bench_save.py`) does not need the harness.
-- The `component-lab` mod in `mod/component-lab` (see `sync.sh`).
+- The `component-lab` mod in `mod/component-lab`.
 - Python 3, `taskset`, `curl`.
 
 ```bash
@@ -243,6 +291,9 @@ cd bench
 ./suite.py --group native   -n 2000  --ticks 3600 --runs 5 --skip 300 --cpus 8-11
 ./suite.py --group native   -n 20000 --ticks 3600 --runs 5 --skip 300 --cpus 8-11
 ./suite.py --group composed -n 2000  --ticks 3600 --runs 5 --skip 300 --cpus 8-11
+./suite.py --group composed -n 2000  --ticks 3600 --runs 3 --skip 300 --cpus 8-11 \
+    --only cl-hearth cl-brazier cl-creep-collector cl-rotating-chest \
+           cl-slag-generator cl-waste-heat-smelter cl-mass-driver cl-tuned-furnace
 ./fetch_mulark.py                    # downloads and sha256-checks mulark's maps
 ./suite.py --group mulark            --ticks 3600 --runs 5 --skip 600 --cpus 8-11
 
@@ -262,6 +313,19 @@ builds `RESULTS.md` from those files. `bench/README.md` describes the world
 layout, the output format of `--benchmark-verbose all` and how mods are
 resolved for a save. The whole measurement run takes about 45 minutes of
 benchmarking plus about 40 minutes of world builds.
+
+### The reference mod's test suite
+
+`mod/component-lab` is the Lua reference implementation of the proposed
+prototype format: `lib/` builds the nearest fake out of today's prototypes and
+hidden parts at the data stage, `scripts/` keeps the parts alive through build,
+mine, clone, blueprint, undo and destroy, and `prototypes/entities/` holds the
+sixteen test entities. `STATUS.md` lists every emulation gap with the test that
+documents it; `REVIEW.md` and `REVIEW-2.md` are the two adversarial reviews.
+The suites in `harness/suites/component-lab/` run through the same harness
+(`fh test component-lab --fresh`, from a project directory holding
+`harness/component-lab.json` as `projects/component-lab.json`) on a headless
+2.1.24 server: 297 tests, 288 pass, 9 fail on purpose.
 
 ## Hardware and conditions
 
@@ -303,8 +367,11 @@ benchmarking plus about 40 minutes of world builds.
 - `bench/RESULTS.notes.md` (appended to `RESULTS.md`) still contains one
   earlier bullet saying the pY runs had not happened yet; the pY paragraph at
   its end and section (d) supersede it.
-- `bench/builds/` also contains builders for a second set of eight entities
-  (`docs/TEST-ENTITIES-2.md`); results for those are not in this snapshot.
+- **The second pass ran 3 times per save, not 5.** Spreads were 0.1-17%
+  (native-cl-brazier 17.2%, native-cl-waste-heat-smelter 8.5%, the rest 7.6%
+  or less). The empty baseline rerun in that pass had a 31% spread, but its
+  best run (0.107 ms) matched the first pass (0.106); the first-pass rows
+  moved by 0.5 ns or less.
 
 ## Layout
 
@@ -319,8 +386,8 @@ bench/census-mod/  one-tick mod that counts entities by prototype in a save
 bench/results/     raw results: one JSON line per benchmark run, census JSON per pY save
 bench/RESULTS.md   generated report (sections a-d) plus the hand-written notes
 docs/              ENTITIES.md (all sixteen emulated entities, summary), TEST-ENTITIES-2.md (second-pass specs)
-mod/               component-lab, the Lua reference mod (filled by sync.sh)
-harness/           the mod's test suites and harness project file (filled by sync.sh)
+mod/               component-lab, the Lua reference mod (lib/, scripts/, prototypes/, STATUS.md, REVIEW*.md)
+harness/           the mod's harness suites (suites/component-lab/) and project file
 ```
 
 Saves, run directories and downloaded maps are not part of the repository

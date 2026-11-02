@@ -5,9 +5,13 @@ every variant at one cell count.
     ./suite.py -n 2000 --ticks 3600 --runs 5        # the quiet-box run
     ./suite.py -n 200 --ticks 300 --runs 2 --rebuild
     ./suite.py --group composed -n 2000 --ticks 3600 --runs 5   # cl-* vs native twins
+    ./suite.py --group composed --only cl-hearth,cl-brazier -n 2000   # just those + their twins
     ./suite.py --group mulark --ticks 3600 --runs 5    # mulark's public maps
     ./suite.py --group all ...                         # both
 
+In the composed group a twin is every PAIRS entry that is a grid cell
+(native-*, poll-*, beacon-*, reactor-*); twins that are native-matrix variants
+(stone-furnace, assembler, chests, ...) come from the native group at the same n.
 Saves are named <variant>-<n>; an existing save is reused unless --rebuild.
 The mulark group is every map in saves/mulark/manifest.json that loads on
 2.1.24 (fetch_mulark.py downloads them); it runs with --drop-missing because
@@ -36,7 +40,15 @@ def main() -> int:
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--cpus")
     ap.add_argument("--note")
+    ap.add_argument("--only", help="composed group: comma-separated cl-* names; build and "
+                                   "benchmark only these and their twins")
     args = ap.parse_args()
+    only = [n for n in (args.only or "").split(",") if n]
+    unknown = [n for n in only if n not in COMPOSED]
+    if unknown:
+        ap.error(f"--only: not composed entities: {', '.join(unknown)} (known: {', '.join(COMPOSED)})")
+    if only and args.group != "composed":
+        ap.error("--only applies to --group composed")
 
     extra = ["--ticks", str(args.ticks), "--runs", str(args.runs), "--skip", str(args.skip)]
     extra += ["--cpus", args.cpus] if args.cpus else []
@@ -51,8 +63,9 @@ def main() -> int:
 
     if args.group == "composed":
         # empty baseline + every composed entity + its same-layout native twin
-        names = ["empty"] + COMPOSED + sorted({n for v in PAIRS.values() for n in v
-                                                if n.startswith("native-")})
+        composed = only or COMPOSED
+        names = ["empty"] + composed + sorted({n for c in composed for n in PAIRS.get(c, [])
+                                                if n not in VARIANTS})
         saves = []
         for v in names:
             n = 0 if v == "empty" else args.cells

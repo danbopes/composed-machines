@@ -579,7 +579,7 @@ class AssemblingMachine final : public CraftingMachine {
 struct World {
   std::vector<ElectricNetwork> nets;
   std::vector<Entity*> table;  // [g * kRoles + role], for wiring and hashing only
-  // Per-type buckets, updated in the engine's EntityOrderList order.
+  // Per-type buckets, updated in the engine's per-type update list order.
   std::vector<Inserter*> inserters;
   std::vector<AssemblingMachine*> assemblers;
   std::vector<Furnace*> furnaces;
@@ -621,7 +621,7 @@ struct World {
   void tick() {
     ++g_tick;
     // Qualified calls = static dispatch per bucket, as the templated
-    // EntityOrderList<...>::update does in the real engine.
+    // the engine's per-type update loop does in the real engine.
     for (Inserter* e : inserters) e->Inserter::update();
     for (AssemblingMachine* e : assemblers) e->AssemblingMachine::update();
     for (Furnace* e : furnaces) e->Furnace::update();

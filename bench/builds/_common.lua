@@ -16,7 +16,12 @@ end
 
 local function make_surface(radius_tiles)
   local s = game.surfaces[SURFACE]
-  if s then game.delete_surface(s) end
+  -- delete_surface takes effect on the next tick, so the name would still be
+  -- taken by the create below; move the old surface out of the way first.
+  if s then
+    s.name = SURFACE .. "-old-" .. game.tick .. "-" .. s.index
+    game.delete_surface(s)
+  end
   s = game.create_surface(SURFACE, {
     default_enable_all_autoplace_controls = false,
     autoplace_settings = {

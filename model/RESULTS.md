@@ -151,7 +151,7 @@ cost. Once it does, this model shows no cost to composition itself.
 - **D's per-shape buckets have a cost the model barely exercises.** The workload has only
   one ticking shape. A modded game with many shapes would mean more buckets and more
   template instantiations (larger code, more instruction-cache pressure), and every new
-  shape needs a fixed slot in the type order, the equivalent of an `EntityOrderList` entry.
+  shape needs a fixed slot in the type order, the equivalent of an per-type update slot.
 - **The order-independence bookkeeping is a modelling device.** It adds the same work to all
   four architectures, which makes the absolute ns figures, and every ratio, less extreme.
 - **The 1M figures sit past a cache cliff.** At about 35 ns/e-t against about 7.5 at 100k,

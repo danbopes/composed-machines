@@ -90,6 +90,9 @@ sanitize() {
   sed -i -E -e 's# \(V2-PARTS section 5 item 2\)##' "$m/RESULTS-v2.md"
   sed -i -E -e 's#`CraftingMachine::update`#the crafting-machine update#g; s#`EntityOrderList<[^`]*>::update`#the engine\x27s per-type update loop#g' "$m/RESULTS.md" "$m/RESULTS-v2.md" "$m/README.md"
   sed -i -E -e 's#docs/TEST-ENTITIES\.md#docs/ENTITIES.md#g' "$repo/README.md" "$b/README.md" "$b/RESULTS.md" "$b/RESULTS.notes.md" 2>/dev/null || true
+  sed -i -E -e 's#component/design/TEST-ENTITIES-2\.md#../docs/TEST-ENTITIES-2.md#g' "$b/README.md" "$b/RESULTS.md" "$b/RESULTS.notes.md" "$b/make_save.py"
+  sed -i -E -e 's#`EntityOrderList` entry#per-type update slot#g' "$m/RESULTS.md"
+  sed -i -E -e "s#EntityOrderList<[^>]*>::update#the engine's per-type update loop#g; s#EntityOrderList#per-type update list#g" "$m/model.cpp"
 
   local note='> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.'
   sed -i -E 's#conventions as `TEST-ENTITIES\.md`#conventions as the first pass (`ENTITIES.md`)#' "$d/TEST-ENTITIES-2.md"
@@ -116,6 +119,13 @@ if (( with_mod )); then
   cp "$harness/projects/component-lab.json" "$repo/harness/component-lab.json"
   sed -i -E 's#"source": *"[^"]*"#"source": "../mod/component-lab"#' "$repo/harness/component-lab.json"
   rm -f "$repo/mod/README.md" "$repo/harness/README.md"
+  sed -i -E \
+    -e 's#`component/design/SPEC\.md`#the proposal specification (not included here)#g' \
+    -e 's#`component/design/TEST-ENTITIES\.md`#`../../docs/ENTITIES.md`#g' \
+    -e 's#`component/design/TEST-ENTITIES-2\.md`#`../../docs/TEST-ENTITIES-2.md`#g' \
+    -e 's#component/design/TEST-ENTITIES-2\.md#../../docs/TEST-ENTITIES-2.md#g' \
+    -e 's#component/design/TEST-ENTITIES\.md#../../docs/ENTITIES.md#g' \
+    "$repo"/mod/component-lab/*.md
 fi
 
 echo "synced from $src (mod/harness: $([[ $with_mod == 1 ]] && echo yes || echo skipped))"

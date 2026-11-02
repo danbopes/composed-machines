@@ -1,0 +1,13 @@
+{
+  "schema": 2,
+  "mod": "component-lab",
+  "source": "../mod/component-lab",
+  "base_game_mods": [
+    "base",
+    "elevated-rails",
+    "quality",
+    "space-age"
+  ],
+  "include_optional_deps": [],
+  "suite": "suites/component-lab"
+}

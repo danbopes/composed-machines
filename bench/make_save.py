@@ -27,7 +27,10 @@ NATIVE_MATRIX = sorted(CELL_VARIANTS | {"chests"})
 # cl-* build has a native-* twin in the same layout; where the native
 # comparison is an existing matrix variant it is listed as well.
 COMPOSED = ["cl-fluid-chest", "cl-signal-chest", "cl-fuelled-chest", "cl-cold-box",
-            "cl-timed-converter", "cl-seep-derrick", "cl-dig-site", "cl-signal-endpoint"]
+            "cl-timed-converter", "cl-seep-derrick", "cl-dig-site", "cl-signal-endpoint",
+            # Second pass (../docs/TEST-ENTITIES-2.md).
+            "cl-hearth", "cl-brazier", "cl-creep-collector", "cl-rotating-chest",
+            "cl-slag-generator", "cl-waste-heat-smelter", "cl-mass-driver", "cl-tuned-furnace"]
 PAIRS = {
     "cl-fluid-chest": ["native-fluid-chest", "chests"],
     "cl-signal-chest": ["native-signal-chest"],
@@ -37,8 +40,19 @@ PAIRS = {
     "cl-seep-derrick": ["native-seep-derrick"],
     "cl-dig-site": ["electric-furnace", "assembler"],
     "cl-signal-endpoint": ["native-signal-endpoint"],
+    "cl-hearth": ["native-cl-hearth", "stone-furnace"],
+    "cl-brazier": ["native-cl-brazier"],
+    "cl-creep-collector": ["native-cl-creep-collector", "poll-creep-collector", "electric-furnace"],
+    "cl-rotating-chest": ["native-cl-rotating-chest", "chests"],
+    "cl-slag-generator": ["native-cl-slag-generator"],
+    "cl-waste-heat-smelter": ["native-cl-waste-heat-smelter", "reactor-waste-heat-smelter",
+                              "electric-furnace"],
+    "cl-mass-driver": ["native-cl-mass-driver", "poll-mass-driver", "assembler"],
+    "cl-tuned-furnace": ["native-cl-tuned-furnace", "beacon-tuned-furnace"],
 }
-GRID_VARIANTS = set(COMPOSED) | {n for v in PAIRS.values() for n in v if n.startswith("native-")}
+# Every twin that is not a native-matrix variant (native-*, poll-*, beacon-*,
+# reactor-*) is a grid cell built with _grid.lua like the composed ones.
+GRID_VARIANTS = set(COMPOSED) | {n for v in PAIRS.values() for n in v if n not in NATIVE_MATRIX}
 VARIANTS = sorted(set(NATIVE_MATRIX) | GRID_VARIANTS | {"empty"})
 
 
