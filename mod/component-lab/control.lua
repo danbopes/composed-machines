@@ -27,4 +27,6 @@ for _, entry in ipairs({
   runtime.register(entry[1], require("scripts.entities." .. entry[2]))
 end
 
+require("scripts.ghost-requests")
+
 runtime.install()

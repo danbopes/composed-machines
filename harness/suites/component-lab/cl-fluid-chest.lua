@@ -232,8 +232,7 @@ end)
 
 test("cl-fluid-chest: clone carries fluid, items, orientation and threshold state", function()
   local core, s, pos = build(WATCH, 20)
-  local u = core.unit_number
-  cl("fluid_chest_rotate", u)
+  assert_true(cl("rotate", core), "rotate accepted")
   tank_of(core).set_fluid(1, {name = "water", amount = 180})
   poll(core)
   core.get_inventory(defines.inventory.chest).insert{name = "iron-gear-wheel", count = 5}
@@ -257,20 +256,20 @@ end)
 
 test("cl-fluid-chest: rotating the core rotates the tank's connections", function()
   local core, s, pos = build(PLAIN)
-  local u = core.unit_number
   local t = tank_of(core)
   local east_pipe = s.create_entity{name = "pipe", position = {pos[1] + 1, pos[2]}, force = "player"}
   local north_pipe = s.create_entity{name = "pipe", position = {pos[1], pos[2] - 1}, force = "player"}
   assert_true(neighbours(t)[north_pipe.unit_number] ~= nil, "north pipe connected facing north")
   assert_nil(neighbours(t)[east_pipe.unit_number], "east pipe not connected facing north")
-  assert_true(not core.supports_direction, "the container core has no direction of its own")
-  assert_eq(cl("fluid_chest_rotate", u), EAST, "rotated")
-  assert_eq(t.direction, EAST)
+  assert_true(core.supports_direction, "the container core rotates (direction_count = 4)")
+  assert_true(cl("rotate", core), "rotate accepted")
+  assert_eq(core.direction, EAST, "core rotated")
+  assert_eq(t.direction, EAST, "tank follows")
   assert_true(neighbours(t)[east_pipe.unit_number] ~= nil, "east pipe connected after rotating")
   assert_nil(neighbours(t)[north_pipe.unit_number], "north pipe dropped after rotating")
-  assert_eq(cl("fluid_chest_rotate", u, true), NORTH, "reverse rotation")
+  assert_true(cl("rotate", core, true), "reverse rotation")
+  assert_eq(t.direction, NORTH, "tank back north")
   assert_true(neighbours(t)[north_pipe.unit_number] ~= nil, "north pipe back")
-  assert_eq(cl("record", u).data.direction, NORTH, "orientation recorded")
 end)
 
 local function blueprint_of(s, pos)
@@ -294,7 +293,7 @@ end
 
 test("cl-fluid-chest: blueprint round-trip keeps one entity and the orientation", function()
   local core, s, pos = build(WATCH, 20)
-  cl("fluid_chest_rotate", core.unit_number)
+  assert_true(cl("rotate", core), "rotate accepted")
   core.get_inventory(defines.inventory.chest).set_bar(5)
   local bp, inv = blueprint_of(s, pos)
   local entities = bp.get_blueprint_entities()
@@ -302,8 +301,7 @@ test("cl-fluid-chest: blueprint round-trip keeps one entity and the orientation"
   assert_eq(entities[1].name, WATCH, "the core, no storage-tank")
   local bar = core.get_inventory(defines.inventory.chest).get_bar()
   assert_not_nil(entities[1].bar, "native bar carried")
-  local tags = bp.get_blueprint_entity_tags(1).component_lab
-  assert_eq(tags.extra.direction, EAST, "orientation in tags")
+  assert_eq(entities[1].direction, EAST, "orientation carried natively by the blueprint entity")
   local ghosts = bp.build_blueprint{surface = s, force = "player", position = {pos[1] + 6, pos[2]},
     skip_fog_of_war = false, build_mode = defines.build_mode.forced}
   assert_eq(#ghosts, 1, "one ghost")
@@ -311,16 +309,16 @@ test("cl-fluid-chest: blueprint round-trip keeps one entity and the orientation"
   assert_eq(#built, 1, "revived")
   local copy = built[1]
   assert_not_nil(cl("record", copy.unit_number), "registered")
-  assert_eq(tank_of(copy).direction, EAST, "orientation applied from tags")
+  assert_eq(copy.direction, EAST, "core built facing east")
+  assert_eq(tank_of(copy).direction, EAST, "tank built facing the core")
   assert_eq(copy.get_inventory(defines.inventory.chest).get_bar(), bar, "bar applied")
   assert_not_nil(cl("record", copy.unit_number).next_due, "revived watched chest polls")
   inv.destroy()
 end)
 
--- KNOWN GAP: a container ghost has no direction, so a blueprint placed rotated
--- cannot tell the tag's orientation apart from a turned one. The native type
--- rotates its fluid box with the entity.
-test("cl-fluid-chest: KNOWN GAP rotated blueprint placement rotates the tank", function()
+-- Containers rotate since 2.1.7, so the ghost carries the blueprint's rotation
+-- and the tank is built facing it with no tag involved.
+test("cl-fluid-chest: rotated blueprint placement rotates the tank", function()
   local core, s, pos = build(PLAIN, 20)
   local bp, inv = blueprint_of(s, pos)
   local ghosts = bp.build_blueprint{surface = s, force = "player", position = {pos[1] + 6, pos[2]},
@@ -329,7 +327,6 @@ test("cl-fluid-chest: KNOWN GAP rotated blueprint placement rotates the tank", f
   local built = revive_all(ghosts)
   inv.destroy()
   assert_eq(#built, 1, "revived")
-  assert_eq(tank_of(built[1]).direction, EAST,
-    "KNOWN GAP (emulation limit): blueprint rotated by 90 degrees left the hidden tank facing "
-      .. "its tagged direction; a container core carries no direction to rotate")
+  assert_eq(built[1].direction, EAST, "core built rotated")
+  assert_eq(tank_of(built[1]).direction, EAST, "tank built rotated")
 end)

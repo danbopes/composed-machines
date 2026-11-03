@@ -1,10 +1,7 @@
 # Beyond v1: the parts that would let the composed machine extend the game
 
-> Public copy. Engine-internal references from the private working notes have been removed; where a claim rested on them it is marked as an assumption for Wube to confirm.
-
-Revision 2, 2026-11-02 (revision 1 was taken apart by a hostile review from a "Wube engineer" persona, which
-checked each mechanism against the engine's public behaviour and documentation; the review is not included in
-the public repository; every correction it made is applied here). Companion to `docs/SPEC.md` (v1) and
+Revision 3, 2026-11-03 (revision 1 dropped seven buildings and three parts that were already buildable in
+vanilla 2.1 or had no existing engine mechanism behind them); history in `CHANGELOG.md`. Companion to `docs/SPEC.md` (v1) and
 `docs/WRITEUP.md`. Evidence columns cite `research/CONVERSION-CANDIDATES.md` (189 buildings with blocker
 codes; "sole" = rows where that capability is the only thing stopping a FULL conversion; the per-part row lists
 are in section 5), `research/RESEARCH.md` section 1 (13 ranked gaps), `research/forum-dropped-features.md`
@@ -16,19 +13,36 @@ public evidence cannot settle.
 v1 earns its performance from four properties, and a part that breaks any of them is not a part of this
 type, however useful: (1) the part is fixed when the prototype loads and never changes at runtime; (2) an
 instance whose parts need no ticking is not on any update list, and one that does tick can sleep; (3) no
-Lua runs inside the entity update, only opt-in events flushed after it; (4) the part wraps an existing engine
+Lua runs inside the entity update, only opt-in events raised right after it; (4) the part wraps an existing engine
 mechanism, or is small enough to be read in one sitting. Every part below names the mechanism and what it
 does to the shape (S0 passive, S1 watcher, S2 timer, S3 machine).
 
-**Coverage.** v1 converts 22 of 189 buildings fully. The parts kept below lift the sole-blocker rows they
-own: FULL rises to at least 64 after v2 and 73 after v3 (34 % to 39 %), counting the four two-blocker rows
+**Coverage.** v1 converts 22 of 189 surveyed scripted buildings fully and 36 partly; most of the rest need a
+different core (inserter, roboport, train stop, silo, unit, drill), which this type does not claim. The parts
+kept below lift the sole-blocker rows they own: FULL rises to at least 64 after v2 and 73 after v3 (34 % to 39 %), counting the four two-blocker rows
 both of whose blockers ship (Nullius and Ultracube power, K2 shelter, the offshore pump). Counting mods only
 (leaving out the vanilla types that are themselves a generator, a reactor, a beacon or a lamp), v2 lifts 29
-mod buildings and v3 four more. What stays out is what needs a different core (inserter, roboport, train
-stop, silo, moving unit, mining drill: 29 + 16 + 22 + 7 rows), recipe selection (17), or a cross-entity link
-(12).
+mod buildings and v3 four more. What stays out is the different cores (29 + 16 + 22 + 7 rows), recipe
+selection (17), or a cross-entity link (12).
 
 ## 1. The parts, ranked
+
+In short, ranked by the buildings each part lifts on its own:
+
+| Part | What it wraps in the engine | Buildings lifted | Stage |
+|---|---|---|---|
+| Triggers on cycle start and finish | The projectile, smoke and area-effect machinery every weapon uses | 1 + every "machine that shoots" | v1.1 |
+| Typed settings (item, fluid, signal, quality, offset) as blueprint parameters | The constant combinator's signal storage; the blueprint-parameter collector | 2 | v1.1 |
+| Wildcard ingredient ("consume anything") | An unfiltered fluid box; about 100 new lines for items | 3 | v1.1 |
+| Small fields: pollution per cycle, light, destroy on empty, fluids in the circuit read | Existing fields on cargo pods, lamps and tanks | 3 | v1.1 |
+| Electric generation | The electric interface's production half; the burner generator's two-source shape | 16 | v2 |
+| Heat output | The reactor's heat buffer on an owner that pushes into the heat update | 7 | v2 |
+| Circuit input: enable condition, signal-bound settings | The enable/disable behaviour every pump and inserter has | 5 | v2 |
+| Products from the tile or planet; placement on resource patches | The offshore pump's tile read; the drill's placement rule | 5 | v2 |
+| Logistic role per inventory | The logistic-member interface ten types, eight of them not chests, already implement | new buildings | v3, debated |
+| Effect broadcast | Beacon reception, which today only crafters, labs and drills have | 5 | v3, debated |
+
+In detail:
 
 | # | Part | Sole rows (mods / all) | Mechanism wrapped | Shape effect | Size (C++, no GUI) | Stage |
 |---|---|---|---|---|---|---|
@@ -41,7 +55,7 @@ stop, silo, moving unit, mining drill: 29 + 16 + 22 + 7 rows), recipe selection 
 | 7 | Tile and surface products; placement on resources | 3 + 2 / 3 + 2 | the offshore pump's tile fluid and the mining drill's placement rule (`require_resources_to_place`); the surface-property check behind `surface_conditions` | none (resolved at build) | 200-300 | v2 |
 | 8 | Small fields: emissions per cycle, light, destroy on empty, fluid in the contents read, editable sections | 0 / 3 | the pollution emission machines already use, the working-visualisation light, the temporary container's (cargo pod's) fields, the constant combinator's logistic-section GUI | none, except `time_to_live` (S1, updated every N ticks) | 150-250 | v1.1 |
 | 9 | Logistic role per inventory | 0 / 0 (NET rows are cores) | the logistic-member behaviour ten types, eight of them not chests, already have (the character, vehicles, the roboport, the rocket silo, the space platform hub, the cargo landing pad among them); the logistic-section GUI; the logistic chest's blueprint storage | none; a logistic chest has no update | 400-700 | v3 |
-| 10 | Effect broadcast | 4 / 5 | the beacon's receiver linking; receivers find the beacons around them, so a non-beacon broadcaster is a change in receiver code the effect receiver types share (assumed) | none per tick (beacons do not update every tick, Rseding91, 2024, t=113632) | 500-800 | v3 |
+| 10 | Effect broadcast | 4 / 5 | beacon reception, which today only crafters, labs and drills have; receivers find the beacons around them, so a non-beacon broadcaster is a change in how they do that (assumed) | none per tick (beacons do not update every tick, Rseding91, 2024, t=113632) | 500-800 | v3 |
 
 Dropped from revision 1: the solar-curve generation form (`usage_priority = "solar"` is `SolarPanelPrototype`-only,
 "ignored otherwise"; the vanilla `solar-panel` with `solar_coefficient_property` already is a tide mill or wind
@@ -192,7 +206,7 @@ effect_broadcast = { supply_area_distance = 3, distribution_effectivity = 0.5, p
                      while = "always" }    -- or "powered"
 ```
 
-A non-beacon broadcaster is a change in how receivers find the beacons around them, code the effect receiver types share (assumed; for Wube to confirm);
+A non-beacon broadcaster is a change to beacon reception, which today only crafters, labs and drills have: how those receivers find the beacons around them (assumed; for Wube to confirm);
 that is why it is v3. `while = "working"` is gone: every status flip would refresh every receiver in range,
 and working-gated broadcasters in each other's range chain. Most of revision 1's unlocks are already
 served by `LuaEntity::local_effect` (2.1.13, R/W on every effect receiver): the vat brain writes its own
@@ -212,33 +226,32 @@ large beacons, pY's AM/FM beacons with a typed `frequency` setting instead of fi
   pairs a burner with an electric output, is the single precedent and is exactly the generation part's
   continuous form. Beyond that, no.
 - **Attached child entities** (the engine owning hidden parts the way a spidertron owns its legs). The
-  number-one forum gap (about 20 threads, the 23,000-line `0-things` library), but
+  number-one forum gap (about 20 threads; `0-things`, a 23,000-line library for compound-entity identity,
+  parent-child links and undo), but
   Rseding91's 2020 position is "at their core compound entities don't work" (p=512078), and a child is
   still a second entity with its own update, so it buys lifecycle, not performance. v1 removes the need for
   children in every FULL row; keep this as the escape hatch to argue separately, not as a part.
 - **Moving cores, mining, network roles beyond logistic points, cross-entity links.** Different types.
 
-## 3. What becomes possible: buildings no mod can ship today
+## 3. Buildings that become one prototype
 
 Each is one prototype and at most one event handler. Rows that turned out to be vanilla-buildable in 2.1
-(tide mill, thermal battery, biomass boiler, geothermal tap, quality tumbler, composter) were removed by
-the review; what is left is not expressible today, and the forum thread is cited where a modder asked.
+(tide mill, thermal battery, biomass boiler, geothermal tap, quality tumbler, composter) were removed in
+revision 1, and so was the mass driver, which Renai ships; the forum thread is cited where a modder asked.
 
-| Building | Parts | Why it does not exist today |
+| Building | Parts | Today |
 |---|---|---|
-| Aging cellar | v1: storage inventory with `spoil_modifier = 0.25` (faster), filters, `inventory_changed` | No per-container spoil rate; "spoil into" is the aging product. Contested: boskid refused a container spoil multiplier (t=134525, 2026) |
-| Smokehouse | v1: burner, storage inventory with `spoil_modifier = 4`, `activity = inventory_not_empty` | A chest cannot burn fuel; the hidden-reactor rig is the only way (t=108882) |
+| Aging cellar | spoil add-on: storage inventory with `spoil_modifier = {multiplier = 0.25}` (faster), filters, `inventory_changed` | No per-container spoil rate; "spoil into" is the aging product. Contested: boskid refused a container spoil multiplier (t=134525, 2026) |
+| Smokehouse | spoil add-on: burner, storage inventory `store` with `spoil_modifier = {multiplier = 4}`, `activity = "inventory_not_empty"`, `activity_inventories = {"store"}` | A chest cannot burn fuel; a hidden reactor under it is the workaround (t=108882) |
 | Housing / always-burning hearth | v1: burner, `activity = "always"`, process with products | "Entities that don't consume power constantly ... are asleep" (t=61277); today a hidden reactor plus nth-tick polling |
 | Greenhouse | v1: heat energy source, `daylight` condition, process with products | Heat-powered crafters exist, but not with a daylight gate and no recipe |
-| Radio mast | v1: electric watcher, `circuit_outputs = "script"`, `status_changed` | aai-signal-transmission fakes it with a roboport and a hidden surface |
+| Radio mast | v1: electric watcher, `circuit_outputs = "script"`, `status_changed` | aai-signal-transmission: its endpoints' 30-tick power poll (the cross-surface link stays scripted) |
 | Powered-state alarm block | v1: electric S1, `power_state_changed` | Asked since 2014 (t=4841), LTN asked for no-fuel (t=64769): "forcing mods to do bad performing polling" |
 | Slag generator | v2: fluid energy source, generation per cycle, solid byproduct product | t=120072: no way "except through complex compound entity solutions" |
 | Blast furnace with heat recovery | v2: burner, process with products, heat output while working | t=130444: an assembler that emits heat while crafting is faked with "multiple entities" |
 | Adjustable reactor | v2: burner, heat output, `int32` output setting bound to a signal | RealisticReactors swaps between 250 reactor prototypes (t=113731) |
-| Kiln / incinerator | v1.1: wildcard item ingredient, emissions per cycle, smoke trigger per cycle | Needs a recipe per input today (Flare Stack, Angel's) |
-| Mass driver | v1.1: ammo inventory, electric buffer, projectile trigger along facing with a `range` setting | Renai's cannon: EEI, hidden chest and an every-tick dispatcher |
-| Solar still | v2: `daylight` condition, timer shape, products by surface property | Needs surface-derived products |
-| Hot-rock vent | v2: placement on a resource, timer shape, steam product per cycle | Needs placement on resources without a drill |
+| Kiln / incinerator | v1.1: wildcard item ingredient, emissions per cycle, smoke trigger per cycle | Today: one recipe per input, as Flare Stack and Angel's ship it |
+| Products that depend on the tile | v2: timer shape, products from the tile or by surface property, placement on a resource | Needs tile and surface products, and placement on resources without a drill |
 | Signal-tuned furnace | v2: process, `rate` setting bound to a signal, enable condition | Needs circuit input on a non-vanilla type |
 | Requester that cooks | v3: input inventory as requester, burner, process | Needs a logistic role on a non-chest |
 | Tuned broadcast node | v3: effect broadcast while powered, typed `frequency` setting | pY ships fifty AM/FM beacon prototypes |
@@ -247,6 +260,8 @@ the review; what is left is not expressible today, and the forum thread is cited
 
 - **v1**: `SPEC.md` as written. 22 FULL, 36 PARTIAL of 189; every "chest plus one thing" and every
   "machine whose rules live in Lua".
+- **Spoil add-on**: `SPEC.md` Add-on A, offered separately so it can be refused on its own; the aging cellar
+  and smokehouse depend on it.
 - **v1.1, same release**: triggers (1.4), typed settings (1.5), wildcard ingredient (1.6), the small fields
   (1.8). None copies another type's update; each is one call or about a hundred new lines. 550-950 lines.
 - **v2**: generation (1.1), heat output (1.2), circuit input (1.3), tile products and placement (1.7).
@@ -254,9 +269,9 @@ the review; what is left is not expressible today, and the forum thread is cited
 - **v3, debated**: logistic roles (1.9) and effect broadcast (1.10), each 400-800 lines and each touching a
   manager other types own; and the attached-children escape hatch, which is a different argument.
 
-## 5. What a Wube engineer would ask for next, and the per-part row lists
+## 5. Open questions for the engine team, and the per-part row lists
 
-The review's list, kept here as the work order before v2 is argued in earnest:
+What needs confirming before v2 is argued in earnest:
 
 1. **Behaviour confirmed, not assumed**: how effect receivers enumerate the beacons around them; whether one
    entity can carry two electric sources; whether a projectile delivery accepts a position with no target
@@ -265,7 +280,7 @@ The review's list, kept here as the work order before v2 is argued in earnest:
 2. **The shape model re-measured with the v2 axes: DONE** (`model/RESULTS-v2.md`). With an electric or heat
    output pushed on cycle finish, a circuit enable that sleeps the machine and a trigger on finish, keeping the
    four v1 shapes and testing the energy-output pointer only at the push (variant D1) runs at 0.95-1.02 of the
-   static baseline with shuffled update lists; multiplying shapes (D2: six machine shapes, one bucket each)
+   static baseline with shuffled update lists; multiplying shapes (D2: six machine shapes, one update list each)
    runs at 0.96-1.01 and buys nothing measurable, at about 100 bytes of code and one type-order slot per extra
    shape. Variant B's cost returns only if the parts become runtime slots in a class shared with passive
    entities (B2: 1.08-1.12 at 1M, where a 112-byte chest costs cache lines). One trap found: if each shape
@@ -276,10 +291,9 @@ The review's list, kept here as the work order before v2 is argued in earnest:
    measurement.
 3. **A thread-safety statement** for anything touched from the control-behaviour pass or the heat pass.
 4. **GUI line counts per part**, and migration rules when a part is added to or removed from a prototype in
-4. **GUI line counts per part**, and migration rules when a part is added to or removed from a prototype in
    an existing save (a heat buffer appears; the logistic member index shifts with `inventories[]` order;
    energy-source kind changes are assumed to be covered already by the engine's save-load path).
-6. **Measured numbers** from the bench harness for the two parts with a cost story: broadcast transition
+5. **Measured numbers** from the benchmark tooling for the two parts with a cost story: broadcast transition
    storms and the count of wired control behaviours.
 
 Per-part sole-blocker rows (row numbers from `CONVERSION-CANDIDATES.md`; "vanilla" rows are base-game
@@ -303,5 +317,5 @@ types that are themselves instances of the part):
   **FLUIDREAD (1)**: 33 storage-tank. **CCEDIT (1)**: 34 constant-combinator.
 - **BCAST (5, v3)**: 67 beacon (vanilla); 118 pY AM/FM beacons; 155 Nullius large beacons; 157 Tiberium
   control node; 163 Ultracube cube beacon.
-- Rows the review moved out of reach: FREEZE 43, 138 (an S0 cannot be frozen; the teleporter stays a crafter
+- Rows revision 1 moved out of reach: FREEZE 43, 138 (an S0 cannot be frozen; the teleporter stays a crafter
   shell), CONT 26, 32 (the vanilla boiler and fusion reactor are their own answer).

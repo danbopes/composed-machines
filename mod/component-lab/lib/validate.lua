@@ -170,7 +170,7 @@ function validate.spec(spec)
   end
 
   local ti = spec.tick_interval or 1
-  if ti < 1 or ti > 600 then fail(spec, "12", "tick_interval must be 1-600") end
+  if ti < 1 or ti > 60 then fail(spec, "12", "tick_interval must be 1-60") end
   if ti > 1 and es and (es.type == "fluid" or es.type == "heat") then
     fail(spec, "12", "tick_interval > 1 with a fluid or heat source")
   end

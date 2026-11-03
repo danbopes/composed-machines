@@ -1,6 +1,6 @@
 # component-lab: builder notes
 
-Private test mod. It emulates the `composed-machine` type from
+Reference test mod. It emulates the `composed-machine` type from
 `../../docs/SPEC.md` with native shells plus hidden parts (SPEC section 12),
 so each test entity in `../../docs/ENTITIES.md` can be asserted and
 benchmarked against native entities.
@@ -180,6 +180,7 @@ Data stage (`component.define`):
 |---|---|
 | `emulation.core = "assembling-machine"` with no `process` | a **passive shell**: an assembler with an empty recipe category of its own (`<name>-none`), void energy, no modules, flags `no-automated-item-removal` / `-insertion`. Every inventory (the first too) becomes a hidden container + proxy. For a rotatable storehouse (`cl-rotating-chest`) |
 | `direction_count = 4` on a passive or process shell | a connectionless fluid box (added only when the shell declares no fluid box of its own) that never switches off, because the engine only lets a crafting machine rotate if it has one. Square shells then rotate 90 degrees after placement. **A non-square shell only flips 180 degrees after placement** (east <-> west, box unchanged; `lib: KNOWN-LIMIT` test); placement and blueprints take all four directions |
+| `direction_count = 4` on a container core | the container's own `direction_count` (containers rotate since 2.1.7), its picture as a four-way sprite and its circuit connector repeated per direction. Hidden tanks follow the core's direction on build, rotate and clone. For `cl-fluid-chest` |
 | `inventories[i].proxy_offsets = {{x, y}, ...}` | one proxy per offset, all doors to the same hidden container. Part keys `proxy:<inv>`, `proxy:<inv>@2`, `proxy:<inv>@3`... (one shared prototype `<name>-proxy-<inv>`). Use it when inserters must reach the inventory from several tiles |
 | burner `energy_source` + `activity = "always"` + `process` | the burner moves off the shell onto a hidden `reactor` (`energy:energy`, `<name>-burner`), which burns while fuelled whether or not the shell crafts; the shell runs on void. `rec:energy_entity()` / `rec:fuel_inventory()` return the reactor. For `cl-hearth` |
 | no process, no inventories, burner + `activity` | already worked: a `simple-entity-with-owner` core + hidden reactor (shape S1). Give the core graphics with `emulation.prototype = {picture = ...}` (a lamp is not a simple-entity, so `like = "small-lamp"` only lends icon and boxes). For `cl-brazier` |

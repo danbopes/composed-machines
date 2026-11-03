@@ -8,9 +8,7 @@
 local runtime = require("scripts.runtime")
 local defs = require("scripts.defs")
 
-local PLAIN = "cl-fluid-chest"
 local WATCH = "cl-fluid-chest-watch"
-local OURS = {[PLAIN] = true, [WATCH] = true}
 
 local function amount_in(rec, box)
   local entity, index = rec:fluid_box(box)
@@ -47,26 +45,9 @@ end
 
 local function poll_interval(rec) return rec:spec().emulation.poll_interval end
 
-local function tank(rec) return rec.parts["tank:fluid1"] end
-
--- The core is a container and has no direction, so the tank's direction is the
--- entity's orientation and the record is its only durable copy.
-local function set_direction(rec, direction)
-  local t = tank(rec)
-  if t.direction ~= direction then t.direction = direction end
-  rec.data.direction = t.direction
-end
-
-local function rotate(rec, reverse)
-  local turn = reverse and 12 or 4
-  set_direction(rec, (tank(rec).direction + turn) % 16)
-  return rec.data.direction
-end
-
 local handlers = {}
 
 function handlers.on_created(rec, ctx)
-  if rec.data.direction == nil then rec.data.direction = tank(rec).direction end
   if rec.name ~= WATCH then return end
   if ctx.cause ~= "clone" or not rec.data.above then init_thresholds(rec) end
   rec.data.first_poll = rec:schedule_phase(poll_interval(rec))
@@ -78,12 +59,6 @@ function handlers.on_tick(rec, tick)
   rec:schedule_at(tick + poll_interval(rec))
 end
 
-function handlers.blueprint_tags(rec) return {direction = rec.data.direction} end
-
-function handlers.apply_tags(rec, extra)
-  if extra.direction then set_direction(rec, extra.direction) end
-end
-
 function handlers.on_gui(rec, player, frame)
   local entity, index = rec:fluid_box(1)
   local fluid = entity.get_fluid(index)
@@ -92,17 +67,6 @@ function handlers.on_gui(rec, player, frame)
     or string.format("0 / %.0f", capacity)
   frame.add{type = "label", caption = caption}
 end
-
-local function on_rotate_input(event)
-  local player = game.get_player(event.player_index)
-  if not player or player.cursor_stack.valid_for_read or player.cursor_ghost then return end
-  local rec = runtime.get(player.selected)
-  if rec and OURS[rec.name] and rec.entity.force == player.force then
-    rotate(rec, event.input_name == "cl-fluid-chest-reverse-rotate")
-  end
-end
-runtime.subscribe("cl-fluid-chest-rotate", on_rotate_input)
-runtime.subscribe("cl-fluid-chest-reverse-rotate", on_rotate_input)
 
 -- What a mod listening to the threshold event receives; suites read it back.
 runtime.subscribe(defs.events[WATCH].fluid_threshold, function(event)
@@ -142,10 +106,6 @@ runtime.init_hooks[#runtime.init_hooks + 1] = function()
   if not storage.fluid_chest.fill_probe then arm_fill_probe() end
 end
 
-runtime.expose("fluid_chest_rotate", function(unit_number, reverse)
-  local rec = storage.cl.records[unit_number]
-  return rec and OURS[rec.name] and rotate(rec, reverse) or nil
-end)
 runtime.expose("fluid_chest_seen", function(clear)
   local seen = storage.fluid_chest.seen
   if clear then storage.fluid_chest.seen = {} end

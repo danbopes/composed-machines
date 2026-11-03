@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-copy the published parts of the private working tree into this repository.
+# Re-copy the published parts of the working tree into this repository.
 #
 # Usage: ./sync.sh [--no-mod] [SRC_ROOT]
 #   --no-mod   skip mod/ and harness/ (copy only model/, bench/ and docs/)
@@ -49,7 +49,7 @@ cp "$comp/design/ENTITIES-public.md" "$repo/docs/ENTITIES.md"
 cp "$comp/design/TEST-ENTITIES-2.md" "$repo/docs/TEST-ENTITIES-2.md"
 
 # Make the copied tree self-contained: no absolute paths into the working
-# machine, no references to the private notes it was produced alongside.
+# machine.
 sanitize() {
   local b="$repo/bench" d="$repo/docs" m="$repo/model"
   local gone='see ../research/pyanodons.md'
@@ -119,6 +119,7 @@ if (( with_mod )); then
   sed -i -E 's#"source": *"[^"]*"#"source": "../mod/component-lab"#' "$repo/harness/component-lab.json"
   rm -f "$repo/mod/README.md" "$repo/harness/README.md"
   sed -i -E 's#~/factorio/component/mod/ws/#mod/ws/#g' "$repo"/mod/component-lab/*.md
+  sed -i -E 's#^Private test mod\. It emulates#Reference test mod. It emulates#' "$repo"/mod/component-lab/README.md
   sed -i -E \
     -e 's#`component/design/SPEC\.md`#`../../docs/SPEC.md`#g' \
     -e 's#`component/design/TEST-ENTITIES\.md`#`../../docs/ENTITIES.md`#g' \

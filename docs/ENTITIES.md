@@ -156,8 +156,8 @@ pY save gives the field ratio for dig sites (`bench_save.py "pY 134"`), where th
 constant-combinator definitions, `direction_count = 4`); `circuit_outputs = "script"`; `max_output_signals =
 20`; `events = {status_changed = true, power_state_changed = true}`. Shape **S1**: an always-on electric draw
 with nothing to sleep on; the one shape that ticks forever, at 1/60 of a per-tick entity because of
-`tick_interval` (the loader sizes the buffer to 60 ticks of draw; the instance lives in the mode-5 ring and is
-re-filed 60 slots ahead after each virtual `update`).
+`tick_interval` (the loader sizes the buffer to 60 ticks of draw; the instance is
+updated every 60 ticks).
 
 **Stands in for.** aai-signal-transmission sender / receiver (roboport with 0 radius for the buffer, two
 decider combinators and a pole on a hidden surface, nth(30) polling `energy`; RESEARCH section 2), pY aerial
@@ -166,6 +166,6 @@ poll); gaps 3 and 5.
 
 **Native comparison.** `constant-combinator` + `electric-energy-interface` (new variant `endpoints`: N EEIs at
 50 kW next to N combinators with one section each). Expected: the `ElectricEnergyInterface` column is what the
-native S1 costs at `tick_interval = 1` and ~60x the projection at `tick_interval = 60` (which, from the ring,
+native S1 costs at `tick_interval = 1` and ~60x the projection at `tick_interval = 60` (which, updated every 60 ticks,
 would show in no per-class column); `electricNetworkUpdate` carries the per-source drain and refill for both;
 `controlBehaviorUpdate` for the sections is the same in both; the poll is the `scriptUpdate` saving.

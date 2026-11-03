@@ -23,7 +23,7 @@ There are two halves:
   five public benchmark maps by mulark, and three large Pyanodon's saves.
 - **mod/** and **harness/**: `component-lab`, the Lua reference mod that
   builds those sixteen entities from the proposed prototype format, and its
-  299-test harness suite (288 pass; 11 fail on purpose and document an
+  301-test harness suite (291 pass; 10 fail on purpose and document an
   emulation limit each).
 - **model/**: one C++17 program that runs a Factorio-like tick (chests,
   inserters, furnaces and assemblers on shared electric networks) under several
@@ -256,6 +256,35 @@ control that shows it.
 
 ## Reproducing
 
+Everything the proposal cites is in this repository:
+
+- **Research** (`research/`): 86 forum threads catalogued and 65 read in full,
+  with developer quotes verbatim; 30 modding-help threads; the mods' own GitHub
+  issue trackers searched with the GitHub CLI, every finding re-opened and
+  verified; a local library of hundreds of mods, the nine Pyanodons mods and
+  their source, the 2.0 and 2.1 changelogs and the 2.1.24 API reference.
+- **Engine facts**: from the public API and prototype references, the
+  changelogs, Wube developers' public descriptions of the update loop, and the
+  game's own per-class benchmark timers. The details that could not be
+  verified from outside are marked as assumptions in `docs/SPEC.md`, each with
+  a fallback.
+- **Model** (`model/`): a C++17 program of about 2000 lines, four
+  architectures plus the v2 axes, identical checksums.
+- **Reference mod** (`mod/component-lab/`, `harness/`): a Lua library plus
+  sixteen entities and 301 tests on a headless server, with two adversarial
+  reviews (`REVIEW.md`, `REVIEW-2.md`).
+- **Benchmarks** (`bench/`): the game's own `--benchmark` mode with per-class
+  timers, 3600 ticks, 3 to 5 runs; a native matrix at 2k and 20k, every test
+  entity next to its native comparison and the shipped workaround where one
+  exists, five of mulark's public benchmark maps (credit: mulark and the map
+  authors), and three Pyanodons saves.
+- **Documents** (`docs/`): the writeup, the v1 specification, the parts beyond
+  v1, and the sixteen test entities (1 to 8, 9 to 16). Revision history is in
+  `CHANGELOG.md`.
+- **Hardware**: Ryzen 9800X3D; g++ 13 and clang 18 for the model; Factorio
+  2.1.24 headless for the benchmarks, pinned to four cores. Details under
+  "Hardware and conditions" below.
+
 ### Model (no Factorio needed)
 
 ```bash
@@ -330,7 +359,7 @@ documents it; `REVIEW.md` and `REVIEW-2.md` are the two adversarial reviews.
 The suites in `harness/suites/component-lab/` run through the same harness
 (`fh test component-lab --fresh`, from a project directory holding
 `harness/component-lab.json` as `projects/component-lab.json`) on a headless
-2.1.24 server: 299 tests, 288 pass, 11 fail on purpose.
+2.1.24 server: 301 tests, 291 pass, 10 fail on purpose.
 
 ## Hardware and conditions
 
@@ -360,9 +389,11 @@ The suites in `harness/suites/component-lab/` run through the same harness
   script. Per-instance figures include each cell's feeding entities, which are
   identical within a pair.
 - **The emulation can over-count.** For the cold box, the emulation's spoil
-  pass is a per-tick Lua loop, while a native implementation would re-stamp
-  spoil time once per transfer and cost nothing per tick; its 35x is an upper
-  bound, not a prediction (`docs/ENTITIES.md`, cold box calibration).
+  update is a periodic Lua scan (once per 60 ticks per box), while a native
+  implementation would re-stamp spoil time once per transfer and cost nothing
+  per tick; its ratio of about 35 times the per-entity tick cost of its native
+  parts is an upper bound, not a prediction (`docs/ENTITIES.md`, cold box
+  calibration).
 - **The model is a model.** It is not Factorio's code. Its 1M-entity figures
   are memory-bound and moved by about 10% between runs on the shared L3. Its
   conclusions are about layout and dispatch, not absolute cost.
@@ -383,6 +414,7 @@ The suites in `harness/suites/component-lab/` run through the same harness
 ```
 README.md          this file
 LICENSE            MIT
+CHANGELOG.md       revision history of the proposal and its documents
 sync.sh            re-copies model/, bench/, docs/ (and mod/, harness/) from the working tree
 model/             C++ cost model: model.cpp, Makefile, run.sh, README, RESULTS (v1), RESULTS-v2
 bench/             benchmark tooling (Python), Lua world builders, census mod

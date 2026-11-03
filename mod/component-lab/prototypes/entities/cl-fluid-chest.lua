@@ -7,6 +7,7 @@ local component = require("lib.component")
 local function fluid_chest(name)
   return {
     name = name,
+    direction_count = 4,
     emulation = {like = "wooden-chest", poll_interval = 60},
     inventories = {{name = "main", role = "storage", size = 16, with_bar = true}},
     fluid_boxes = {
@@ -28,11 +29,3 @@ local watch = fluid_chest("cl-fluid-chest-watch")
 watch.fluid_thresholds = {{fluid_box = 1, amount = 150, hysteresis = 10}}
 watch.events = {fluid_threshold = true}
 component.define(watch)
-
--- A container has no direction, so R over the core does nothing natively and
--- on_player_rotated_entity never fires. These inputs piggyback on the rotate
--- keys to turn the hidden tank instead.
-data:extend({
-  {type = "custom-input", name = "cl-fluid-chest-rotate", key_sequence = "", linked_game_control = "rotate"},
-  {type = "custom-input", name = "cl-fluid-chest-reverse-rotate", key_sequence = "", linked_game_control = "reverse-rotate"},
-})

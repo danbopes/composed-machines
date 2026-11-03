@@ -1,22 +1,19 @@
 # `composed-machine`: prototype and runtime specification (v1)
 
-> Public copy. Engine-internal references from the private working notes have been removed; where a design
-> decision rested on them it is marked as an assumption for Wube to confirm.
-
-Synthesised 2026-11-02 from the author's design drafts and their reviews (not included in the public
-repository). Factual base: `research/RESEARCH.md`, the public Lua API and prototype documentation for 2.1.24
+Written 2026-11-02. Factual base: `research/RESEARCH.md`, the public Lua API and prototype documentation for 2.1.24
 (`defines` values from the 2.1.24 runtime API JSON), public statements by Wube developers, the measurements in
 `bench/RESULTS.md` (rules in `bench/README.md`) and the cost model in `model/RESULTS.md` (with variant D).
 Anything not backed by one of those is marked **UNVERIFIED** or as an assumption for Wube to confirm, and gets
 a stated fallback; section 13 lists what each engine fact rests on. Section 12 says how the Lua reference mod
-(`mod/component-lab/`) fakes every part today and what it cannot fake.
+(`mod/component-lab/`) fakes every part today and what it cannot fake. One optional part, the spoil modifier,
+is not in v1: it is specified separately as Add-on A so it can be refused on its own. Appendix C gives the
+delivery order (v0, later steps, the add-on).
 
 ## 0. The design in one paragraph
 
 One new static C++ entity type whose optional parts are fixed when the prototype loads: named
 inventories, one energy source, fluid boxes, a recipe-less process, module slots with an effect
-receiver, a circuit connector, a spoil-rate modifier per inventory, engine-evaluated conditions, and a
-few blueprintable settings. The loader reduces the part set to one of four shapes, each a separate
+receiver, a circuit connector, engine-evaluated conditions, and a few blueprintable settings. The loader reduces the part set to one of four shapes, each a separate
 `final` class with its own bucket in the type-ordered active list (the model's variant D). An instance
 is updatable iff its shape has a process or something to watch per tick; it sleeps through the wake
 lists crafting machines use, and can be scheduled every N ticks. Lua sees the entity through accessors
@@ -55,13 +52,13 @@ load test (`harness/component-lab.json`, step "creating map") catches them exact
 | `circuit_connector` | array[`CircuitConnectorDefinition`] | nil | Exactly `direction_count` entries (1-4), the `ContainerPrototype` array form since 2.1.7. Required for every circuit feature. |
 | `circuit_wire_max_distance` | double | 0 | |
 | `draw_circuit_wires`, `draw_copper_wires` | boolean | true | |
-| `circuit_outputs` | `"none"` / `"contents"` / `"script"` | `"none"` | `contents`: sum of inventories with `show_in_gui`, read like a chest. `script`: the control behaviour owns logistic sections written from Lua (the constant-combinator data model, `LuaLogisticSection`). |
+| `circuit_outputs` | `"none"` / `"contents"` / `"script"` | `"none"` | `contents`: sum of inventories with `show_in_gui`, read like a chest. `script`: the control behaviour owns logistic sections written from Lua (the constant-combinator data model, `LuaLogisticSection`). Fuel is not a declared inventory; it is read through the control behaviour's `read_fuel` toggle, as on crafters, when the energy source is a burner. |
 | `max_output_signals` | uint8 | 20 | 1-100. `script` only; bounds the total filter count across sections. |
 | `default_working_signal`, `default_cycle_finished_signal` | `SignalIDConnector` | nil | As the `AssemblingMachinePrototype` pair (`default_working_signal` / `default_recipe_finished_signal`). |
 | `conditions` | array[`ComposedCondition`] | `{}` | 0-4, section 1.5. Evaluated in order; all must hold for a cycle to start; the first failing one sets the status. |
 | `settings` | array[`ComposedSetting`] | `{}` | 0-4, section 1.6. |
 | `events` | `ComposedEvents` | all off | Section 1.7. |
-| `tick_interval` | uint8 | 1 | 1-195. S1-S3 instances update every `tick_interval` ticks and integrate that many ticks of energy and progress per update (section 3.4). The cap assumes the engine's existing every-N-ticks schedule (section 3.4) has a bounded period that fits a `uint8`; the exact limit is assumed from the engine's behaviour, for Wube to confirm (UNVERIFIED), and v1 refuses larger values. |
+| `tick_interval` | uint8 | 1 | 1-60. S1-S3 instances update every `tick_interval` ticks and integrate that many ticks of energy and progress per update (section 3.4). Baseline implementation: a countdown on the shape's normal update list, one compare per tick. If the engine has a reusable every-N-ticks schedule, Wube may file instances there instead; whether periods above 60 are possible is for Wube to say. |
 | `default_status` | `EntityStatus` | `"normal"` | Status of an S0 instance and of an idle S1 with nothing failing, as `default_status` on `ContainerPrototype`. |
 | `vector_to_place_result` | `Vector` | nil | Items in the first `output`-role inventory are ejected to the drop target (the furnace / drill output path). Requires an `output` inventory. |
 | `graphics_set`, `graphics_set_flipped` | `CraftingMachineGraphicsSet` | nil | Reused whole: 4-way animation, idle animation, `working_visualisations` with `draw_in_states` keyed by the statuses of section 5, `status_colors`. |
@@ -70,7 +67,7 @@ load test (`harness/component-lab.json`, step "creating map") catches them exact
 | `working_sound` | `WorkingSound` | nil | Played while `working`. |
 | `show_contents_in_description` | boolean | true | Hover tooltip lists inventory and fluid contents (as crafters do). |
 | `gui_title_key` | string | `""` | As `gui_title_key` on `AssemblingMachinePrototype`. |
-| `next_upgrade` | `EntityID` | nil | Must be a `composed-machine` of the same shape whose inventories are a superset by name; validated at data stage. |
+| `next_upgrade` | `EntityID` | nil | Must be a `composed-machine` whose inventories are a superset by name; validated at data stage. |
 
 ### 1.2 `ComposedInventory`
 
@@ -82,42 +79,14 @@ load test (`harness/component-lab.json`, step "creating map") catches them exact
 | `inserter_access` | `"none"` / `"insert"` / `"extract"` / `"both"` | by role: input `insert`, output `extract`, storage `both`, trash `extract` | Implemented in the per-entity-type checks inserters already consult for drop and pickup targets (assumed from the engine's behaviour; for Wube to confirm). Loaders follow inserters. `trash` may not be `insert` or `both`. Answers gap 6 per inventory instead of per inserter (boskid refused per-inserter routing, p=664814). |
 | `filters` | array[`ItemID`] | nil | Static accept list, created as the engine's filtered inventory (the 2.0.56 container `inventory_type = "with_filters"` machinery). |
 | `filters_editable` | boolean | false | Per-slot filter buttons in the GUI and `LuaInventory::set_filter`; blueprinted and pasted. |
-| `automated_insertion_limit` | `ItemCountType` | 0 | 0 = the container default (bar and stack size only). n > 0: inserters and robots stop at n of each item, through the same per-slot automated insertion limit inserters already respect on crafters, replacing the "2x recipe" rule crafters derive from the recipe. |
+| `automated_insertion_limit` | `ItemCountType` | 0 | 0 = the container default (bar and stack size only). n > 0: inserters and loaders stop at n of each item (robots fill exact request counts), through the same per-slot automated insertion limit inserters already respect on crafters, replacing the "2x recipe" rule crafters derive from the recipe. |
 | `with_bar` | boolean | `role == "storage"` | The chest bar; bar blueprinted. |
 | `quality_affects_size` | boolean | false | As `quality_affects_inventory_size` on `ContainerPrototype`. |
-| `spoil_modifier` | `ComposedSpoilModifier` | nil | Section 1.3. Not on `trash`. |
 | `show_in_gui` | boolean | true | Also whether it counts in `circuit_outputs = "contents"` and in the tooltip. |
 
-### 1.3 `ComposedSpoilModifier`
+### 1.3 Spoil modifier
 
-| Field | Type | Default | Rule |
-|---|---|---|---|
-| `multiplier` | double | required | 0.01-100. **m > 1 slows spoilage.** On insert into the inventory: `remaining = spoil_tick - now; spoil_tick = now + remaining * m`. On removal (inserter hand, cursor, script `remove`/`transfer`, mining, death spill, fast replace): `spoil_tick = now + remaining / m`. Integer `MapTick` arithmetic, truncating; at most one tick lost per transfer. |
-| `requires_power` | boolean | false | The modifier applies only while the energy source is *powered*: it can currently supply energy (fuel, electricity, fluid or temperature available). On a transition every spoilable stack in the inventory is re-stamped once by `m_new / m_old` (O(slots) per transition, never per tick). Requires `energy_source`; makes the prototype at least S1. |
-| `items` | array[`ItemID`] | all spoilable | Only these items are re-stamped. |
-
-`multiplier = 0` (pause) is **reserved, not in v1**. A stack carries one absolute spoil tick
-(`LuaItemStack::spoil_tick`, public API; 0 when it does not spoil), and nothing in the public API returns a
-stack that has started spoiling to a not-started or paused state. Pause is therefore assumed to need a new
-engine state (a frozen remaining time plus removal from the spoil schedule) or a periodic re-stamp that drifts
-by up to one period, for Wube to confirm; multiply is a one-shot re-key per transfer.
-
-What this part assumes about the engine, inferred from its observable behaviour and the public API, for Wube
-to confirm: spoilage is driven by a tick-keyed schedule, not by scanning inventories, so a re-stamp is one
-reschedule of the stack with no search, no per-inventory structure and no scan; a machine holding spoilables
-is revisited by the engine when a stack inside it spoils, so a sleeping composed machine holding spoilables
-needs no polling to notice a spoil result; and a move of an already-spoiling stack between inventories does
-not touch its spoil tick, so the re-key must be added on every transfer path into and out of the declared
-inventory (inserter hand, loader, cursor, script, crafting moves, mining, death spill). The hook points, not
-the re-key, are the real cost. One cap to carry: v1 caps the native re-stamp at `now + full duration` (a fresh
-stack entering an `m > 1` inventory is clamped at full duration), the same limit a script write of
-`spoil_tick` is assumed to have. Still open: how a partial move's split stack is scheduled, and how a merge of
-two stacks weighs their ticks; the fallback for the merge case is to restrict `spoil_modifier` to inventories
-with `filters` so stacks never merge across modifiers. boskid's position (p=678356, full read) is that
-per-move spoil-tick adjustment is what the spoilage optimisations rule out; this part is exactly that cost,
-confined to transfers into and out of one declared inventory of one opt-in prototype, and the inventory knows
-its owner, so the "items don't know their surface" objection does not apply. He did not permit it; it has to
-be argued against the cost of one re-key per transfer and the per-path hook.
+Not in v1. Specified separately as Add-on A, so it can be refused on its own.
 
 ### 1.4 `ComposedProcess`
 
@@ -127,7 +96,7 @@ be argued against the cost of one re-key per transfer and the per-path hook.
 | `base_speed` | double | 1 | Plays `crafting_speed`; multiplied by the effect receiver's speed. |
 | `speed_quality_multiplier` | dictionary[`QualityID` -> double] | nil | As `crafting_speed_quality_multiplier`. |
 | `start` | `"automatic"` / `"script"` | `"automatic"` | automatic: a cycle starts whenever the gates hold. script: only after `LuaEntity::start_cycle()`; idle otherwise with status `waiting_for_script`. |
-| `ingredients` | array[`IngredientPrototype`] | `{}` | The recipe struct, so quality, `fluidbox_index`, temperature limits, Factoriopedia and statistics come for free. Each item ingredient is satisfied from one inventory: the first `input`/`storage`-role inventory, in declared order, holding the whole amount (as a crafter checks its ingredients); fluids from the box named by `fluidbox_index`, else the first input box whose filter matches. |
+| `ingredients` | array[`IngredientPrototype`] | `{}` | The recipe struct, so quality, `fluidbox_index`, temperature limits, Factoriopedia and statistics come for free. Each item ingredient is summed across input and storage inventories in declared order, consumed in that order; fluids from the box named by `fluidbox_index`, else the first input box whose filter matches. |
 | `consume_at` | `"start"` / `"finish"` / `"script"` | `"start"` | `script`: the engine consumes nothing; `ingredients` must be `{}` and `events.cycle_started` must be set. The handler of `on_composed_cycle_started` reads and removes what it wants, which is how a mod gets the real consumed stack with its tags and nested inventories (the 2024 request, p=687544) without the engine copying anything. |
 | `products` | array[`ProductPrototype`] | `{}` | The recipe struct (probability, `amount_min`/`max`, temperature, `ignored_by_productivity`). Each item product goes to the first `output`/`storage`-role inventory, in declared order, that takes all of it; fluids to the box named by `fluidbox_index`, else the first output box whose filter matches. Empty means Lua produces in `on_composed_cycle_finished`. |
 | `allow_productivity` | boolean | false | Requires `products`. `bonus_progress` accumulates as it does on crafters; a bonus cycle gives `products` without consuming. |
@@ -136,6 +105,11 @@ be argued against the cost of one re-key per transfer and the per-path hook.
 | `return_consumed_on_cancel` | boolean | true | `consume_at = "start"` only; the crafter refund path on cancel and on mine. |
 | `restart_delay` | uint16 (ticks) | 0 | automatic only. The next start decision happens at least this many ticks after a finish. With `events.cycle_finished` set the effective minimum is 1, so the handler always sees the finished state before the next consumption (the "no tick between crafts" complaint). |
 | `progress_resets_when_blocked` | boolean | false | If a gate stops holding mid-cycle (an input was removed), progress is kept (false) or dropped (true). Evaluated only on a transfer out of a declared inventory, never per tick. |
+
+Product quality: consume_at = start works as on crafters. consume_at = finish: the ingredients' quality is
+reserved at start; the cycle consumes that quality at finish or ends with item_ingredient_shortage.
+consume_at = script: products are normal quality before the module roll. allow_productivity requires
+consume_at = start or finish.
 
 ### 1.5 `ComposedCondition`
 
@@ -148,7 +122,7 @@ be argued against the cost of one re-key per transfer and the per-path hook.
 | `inventory_below` | `inventory`, `max_count` | on transfer | total item count < `max_count` (the dig site's "stop at 1000") |
 | `module_slot_filled` | `count` | on module change | at least `count` module slots filled |
 | `fluid_at_least` | `fluid_box`, `amount` | on wake / at start | 1-based index into `fluid_boxes` |
-| `powered` | | per tick (S1+) | the energy source is powered (section 1.3) |
+| `powered` | | per tick (S1+) | the energy source is *powered*: it can currently supply energy (fuel, electricity, fluid or temperature available) |
 | `daylight` | `threshold` | per tick (S1+) | surface darkness < `threshold` |
 
 `status` must be an existing `defines.entity_status` value (2.1.24 has, among others, `no_ingredients`,
@@ -208,15 +182,17 @@ differs (one compare per update in the fallback).
    observes is a bug, not a part.
 7. `allow_productivity` requires `products`; `"quality"` in `allowed_effects` requires `products`;
    `"productivity"` in `allowed_effects` requires `allow_productivity`.
+
+   **7a.** `allow_productivity` with `consume_at = "script"` is an error.
+
 8. `conditions`: every `inventory` declared; every `fluid_box` in range; `status` in the allowed set of 1.5;
    `module_slot_filled` requires `module_slots > 0`.
 9. `circuit_outputs ~= "none"`, `default_*_signal` require `circuit_connector`, whose length must equal
    `direction_count`.
 10. `events.fluid_threshold` requires `fluid_thresholds`; `cycle_*` require `process`; `inventory_changed`
     names declared; `power_state_changed` requires `energy_source`; `settings_changed` requires `settings`.
-11. `spoil_modifier.requires_power` requires `energy_source`; no `spoil_modifier` on `trash`;
-    `inserter_access` on `trash` is `none` or `extract`.
-12. `tick_interval > 1` with a process requires `tick_interval * (1 + speed_limits.high) <= cycle_time * 60 *
+11. `inserter_access` on `trash` is `none` or `extract`.
+12. `tick_interval` is 1-60. `tick_interval > 1` with a process requires `tick_interval * (1 + speed_limits.high) <= cycle_time * 60 *
     max_cycles_per_tick`, so one update never finishes more cycles than the cap (with module slots this forces
     an explicit `effect_receiver.speed_limits.high`). `tick_interval > 1` with a fluid or heat source is an
     error in v1 (their buffers are the modder's fluid box / heat buffer and cannot be auto-sized without
@@ -225,7 +201,7 @@ differs (one compare per update in the fallback).
     an error.
 13. Names: `inventories[].name` unique and not reserved; `settings[].name` unique; at most 8 inventories, 8
     fluid boxes, 4 conditions, 4 settings.
-14. `next_upgrade` (if set) same shape, inventories a superset by name, same `role` for shared names.
+14. `next_upgrade` (if set): inventories a superset by name, same `role` for shared names.
 15. The loader logs the derived shape (`composed-machine "x": shape S1 (watcher: burner)`) so a modder sees
     what they bought; `LuaEntityPrototype.composed_shape` exposes it.
 
@@ -244,7 +220,7 @@ A **tick-watch** is any of: a burner / fluid / heat energy source (assumed from 
 Wube to confirm: a burner refills its buffer from fuel and takes new fuel only in its owner's update, so an
 un-updated burner runs dry after one buffer; fluid likewise; a heat draw happens only in the owner's update);
 `energy_usage > 0` with `activity ~= "cycle"` (a draw that depends on activity); a `powered` or `daylight`
-condition; a `spoil_modifier.requires_power`; `events.power_state_changed`; `fluid_thresholds` with
+condition; `events.power_state_changed`; `fluid_thresholds` with
 `events.fluid_threshold`. An electric source with `energy_usage = 0` and drain only is **not** a tick-watch:
 the electric network is assumed to subtract drain from and refill every connected buffer by network
 membership alone, without the owner's update, for Wube to confirm. It fits what can be observed: idle electric
@@ -258,15 +234,15 @@ Parts that are never shape axes: inventories (touched only by transfers), fluid 
 their entity, as the separate `controlBehavior` benchmark column shows; `contents` and `script` outputs need
 no ticking, like a chest and a constant combinator), module slots (the effect is recomputed when modules or
 beacons change, not per tick; assumed, consistent with Rseding91 2024 that beacons "do not update every tick",
-t=113632), settings, static filters, spoil modifiers without `requires_power`.
+t=113632), settings, static filters.
 
 **Template variant.** Each shape is one instantiation of `ComposedMachine<Shape>`, `final`, with absent parts
 as empty bases (zero bytes under the empty-base optimisation) and their steps removed by `if constexpr`
 (`model/RESULTS.md` variant D). Each shape adds one entry to the engine's per-type batched update (Rseding91,
 2016, p=154019, described updatable entities on intrusive active / inactive lists with per-type batched
 updates), so three shapes add three entries; that the per-surface memory cost of those entries is small is
-assumed, for Wube to confirm. Instances with `tick_interval > 1` are filed in the every-N-ticks schedule
-instead (section 3.4), need no per-type entry, and are assumed to run outside the per-type timing. The model
+assumed, for Wube to confirm. Instances with `tick_interval > 1` stay on their shape's per-type list behind a
+countdown (section 3.4). The model
 measures D/A at 1.00 +/- 0.02 (g++ and clang++, 10k-1M entities) against B/A 1.05-1.10 for a single class
 with null-checked parts (B), and notes the cost D does have: each shape is another per-type list and another
 copy of the update code in the instruction cache. That is why the shape set is four and curated, not one
@@ -284,8 +260,8 @@ checks) is the fallback if three more entries per surface are unwelcome.
 
 1. **Prototype level.** `LuaEntity::is_updatable` (public API since 2.0.26) is true iff the shape is not S0.
    An S0 instance is never on any update list, under any circumstance; its cost is what a container costs.
-2. **Instance level.** An S1-S3 instance is on its update list (its shape's per-type list, or the
-   every-N-ticks schedule when `tick_interval > 1`) iff it is not deactivated and not asleep.
+2. **Instance level.** An S1-S3 instance is on its update list (its shape's per-type list, behind a
+   countdown when `tick_interval > 1`, section 3.4) iff it is not deactivated and not asleep.
    - Deactivated: `disabled_by_script` (public API since 2.0.26), deconstruction ordered, `frozen`, or
      `disabled_by_control_behavior`. Re-entry by the matching activate path (deconstruction cancelled,
      unfrozen, the script write, the control behaviour enabling it).
@@ -302,7 +278,7 @@ intrusive unlink) and registers as a sleeper on the wake lists that can change t
 
 | Result | Sleeps? | Wakes on |
 |---|---|---|
-| a transfer-evaluated condition failed | yes | the named inventory's wake list |
+| a transfer-evaluated condition failed | yes | the entity's insert wake list |
 | `item_ingredient_shortage` | yes | input / storage inventories named by `ingredients` |
 | `fluid_ingredient_shortage`, `fluid_at_least` failed | yes, only while the named boxes are empty | the fluid boxes' wake nodes, if they have any. Crafters are assumed to stay awake while a fluid box holds content, and whether fluid boxes own a wake list is UNVERIFIED, so the fallback is the crafter's: stay awake while a named box is non-empty |
 | `full_output` | yes | output inventories / boxes named by `products` |
@@ -321,27 +297,24 @@ wakes an inserter sleeping on a chest. That every script path (`LuaInventory::in
 assumed, for Wube to confirm. Other wake sources: fuel insertion (the energy source's fuel inventory is a
 normal inventory of the entity); fluid arrival in a box named by a gate; `disabled_by_script = false`;
 control-behaviour enable; a settings write; `blocked_status = nil`; chunk activation; load (sleepers
-re-register on load). None is a poll. Inserters sleeping *on* a composed machine use the machine's input and
-output wake lists unchanged; an inserter waiting to insert registers on the first inventory with
-`inserter_access` allowing insert, in declared order (this is where the multi-inventory inserter rules need
-tests; section 11).
+re-register on load). None is a poll. Inserters sleeping *on* a composed machine use the entity's insert and
+extract wake lists; which inventory a drop or pickup targets is section 3.5.
 
 ### 3.3 Lua `is_updatable`, `status` and the circuit `working` read all report this state truthfully.
 
 ### 3.4 `tick_interval`
 
-The instance updates every `tick_interval` ticks. Mechanism: the engine's existing every-N-ticks schedule,
-which some vanilla entities already use (Rseding91, 2024: beacons "do not update every tick", t=113632). A
-composed machine with `tick_interval > 1` is filed there with period `tick_interval` and never takes a
-per-type list slot; with `tick_interval = 1` it is on its shape's per-type list. An entity is assumed to be on
-exactly one of these, so the choice is per prototype and fixed. Assumed from the engine's behaviour, for Wube
-to confirm: the schedule's period limit (v1 caps `tick_interval` at 195, section 1.1; a larger value is
-assumed to wrap and fire early, UNVERIFIED); the phase is set when the entity is filed on attach, not
-`unit_number % tick_interval`, and `next_update_tick` is derived from it; sleep and wake work unchanged
-(sleeping removes the entity from the schedule, waking re-files it); an update from that schedule is outside
-the per-type batching and its per-type timing, so it shows under no per-class `--benchmark-verbose` column. If
-the schedule does not fit, the fallback is an in-entity countdown on the shape's per-type list (one compare
-per tick).
+The instance updates every `tick_interval` ticks (v1 caps tick_interval at 60, section 1.1). Baseline
+mechanism: an in-entity countdown on the shape's per-type list. Each tick the instance compares the countdown
+and returns unless it has run out, so the cost between updates is one compare per tick; after an update the
+countdown is reset to `tick_interval`. Its first value is set when the entity attaches, not from
+`unit_number % tick_interval`, so machines built together spread their updates; `ticks_until_update`
+(section 7.2) reads it. Sleep and wake work unchanged: a sleeping instance is off the list, and the countdown
+restarts on wake. Because the instance stays on its shape's list, its updates land in that shape's per-class
+`--benchmark-verbose` column. Option for Wube: some vanilla entities already skip ticks (Rseding91, 2024:
+beacons "do not update every tick", t=113632); if the engine has a reusable every-N-ticks schedule, instances
+with `tick_interval > 1` may be filed there instead of carrying a countdown. Whether such a schedule exists,
+and whether periods above 60 are possible, is for Wube to say.
 
 Energy over an interval: one update integrates `dt = tick_interval` ticks. A burner's buffer is the burning
 stack's remaining energy, so drawing `dt * usage_per_tick` in one update just works (assumed). An electric
@@ -351,6 +324,17 @@ multiplies the computed buffer by `tick_interval`; `input_flow_limit` stays at t
 buffer refills over the interval (the network is assumed to add up to the flow limit, scaled by satisfaction,
 to every connected buffer each tick) and is full at the next update. Visible effect: the power graph shows one
 lump per interval. Fluid and heat sources: `tick_interval > 1` is an error in v1 (rule 12).
+
+### 3.5 Drop and pickup targets
+
+**Insert** (inserter, loader, robot delivery, ctrl-click, quick transfer), in order: (1) the burner fuel
+inventory, if the item is a fuel the burner accepts and the fuel inventory is below its automated top-up
+limit; (2) each input-role inventory in declared order whose filters accept the item and which is below its
+automated_insertion_limit; (3) each storage-role inventory with insert access, in declared order. No match:
+the drop is refused and the inserter sleeps on the entity's insert wake list. **Extract**: output-role
+inventories in declared order, then burnt result, then trash, then storage with extract access; never input
+or fuel. **Wake lists are per entity**, one for insert and one for extract, as a container has; any transfer
+into or out of any declared inventory fires the matching list. Loaders follow the inserter order.
 
 ---
 
@@ -391,9 +375,10 @@ first and refuel after (for Wube to confirm).
    and gates still holding: the next cycle starts in this update (crafter behaviour). Otherwise
    `cycle_active = false` and the countdown starts (minimum 1 tick when `cycle_finished` is declared).
 7. **Events (queue only).** `cycles_done > 0` and `events.cycle_finished`: push. Status differs from the
-   stored one and `events.status_changed`: push. The powered state (section 1.3) flipped since the last update:
-   re-stamp every `requires_power` spoil modifier's inventory (O(slots), at the transition only) and push
-   `power_state_changed` if declared. Fluid thresholds crossed: push.
+   stored one and `events.status_changed`: push. The powered state (the `powered` condition, section 1.5)
+   flipped since the last update: push `power_state_changed` if declared (Add-on A only: also re-stamp every
+   `requires_power` spoil modifier's inventory, O(slots), at the transition only). Fluid thresholds crossed:
+   push.
 8. **Status and visuals.** Store the status enum (section 5); the crafter's working-visualisation and
    animation-state drawing drive the graphics (assumed reusable for this type because the graphics set is
    reused whole; for Wube to confirm).
@@ -452,9 +437,9 @@ shape), exposed as `LuaEntityPrototype.composed_events.<flag>` so handlers regis
 
 **Dispatch.** Events are **queued** during the entity phase into a per-map vector of `(entity, kind, payload)`
 and **dispatched at one flush point: immediately after the entity update phase returns (every surface's
-per-type lists and then the every-N-ticks schedule, so both are covered) and before the script phase
+per-type lists, and an every-N-ticks schedule if Wube files instances in one) and before the script phase
 (`scriptUpdate`, the last `--benchmark-verbose` column)**, in queue order, which is entity update order
-(surface, bucket, list; then the schedule). Dirty bits set outside the entity phase (by Lua in the script phase
+(surface, bucket, list). Dirty bits set outside the entity phase (by Lua in the script phase
 of tick T, by input actions, by other phases after the flush) are dispatched at tick T+1's flush with
 `tick = T+1`; player input actions are applied before the entity update, so a player's transfer in tick T
 lands in tick T's flush. This is **new code with no engine precedent known to the author**: `raise_on_crafted`
@@ -464,6 +449,11 @@ of entities during update, so synchronous Lua is *possible*; it is rejected here
 destroy the entity being updated or its neighbours mid-bucket, and a type built to host Lua logic must not run
 Lua inside the entity update phase. The nearest precedent for an end-of-tick flush is `on_object_destroyed`
 ("fired at the end of the current tick or at the end of the next").
+
+Each queue entry holds the entity's unit number. At flush, an entry whose entity is no longer valid
+(destroyed, mined, or destroyed by an earlier handler in the same flush) is dropped without an event. Entries
+are raised in queue order, which is deterministic update order, so every peer sees the same sequence.
+Fallback, and the v0 choice if Wube prefers it: raise synchronously, exactly as raise_on_crafted does today.
 
 A prototype that declares no events pays one bit test per step; one that declares `inventory_changed` pays
 one bit set per transfer, and the flush walks only queued entries. `inventory_changed` on a belt-fed machine
@@ -515,7 +505,7 @@ New (error on other types):
 | `blocked_status` | R/W `EntityStatus` or nil | "I know something the engine does not" (no ore in range). Sets status and diode, sleeps the entity, shown in the GUI and `draw_in_states`; cleared by the script. Saved. Not blueprinted. |
 | `local_effect` | R/W `Effect` | The 2.1 field (`LuaEntity::local_effect`, public API: "additional effect applied to this entity with effect receiver"), unchanged: the receiver's intrinsic term, clamped to `effect_receiver` limits, triggers an effect refresh. Saved; not blueprinted. The per-entity cycle duration lever: scale `speed` within the declared limits. Earlier drafts called this `composed_base_effect`; it already exists on every effect receiver, which is why TURD's hidden beacons are replaceable today. |
 | `get_setting(name)` / `set_setting(name, value)` | methods | Typed; a script write raises `settings_changed` with `player_index = nil`. |
-| `next_update_tick` | R | For `tick_interval > 1`; derived from the entity's phase in the every-N-ticks schedule. |
+| `ticks_until_update` | R | uint8. For `tick_interval > 1`: ticks left on the countdown before the next update (section 3.4); 0 when `tick_interval = 1`. |
 | `composed_shape` | R | As the prototype's. |
 
 ### 7.3 `LuaComposedMachineControlBehavior`
@@ -523,7 +513,10 @@ New (error on other types):
 The generic on/off set (`circuit_enable_disable`, `circuit_condition`, `logistic_condition`,
 `connect_to_logistic_network`; `LuaGenericOnOffControlBehavior`); `circuit_read_contents` (with
 `circuit_outputs = "contents"`), `circuit_read_working`, `circuit_read_cycle_finished`,
-`circuit_working_signal`, `circuit_cycle_finished_signal` (the `LuaAssemblingMachineControlBehavior` set); and
+`circuit_working_signal`, `circuit_cycle_finished_signal` (the `LuaAssemblingMachineControlBehavior` set);
+`read_fuel` (burner `energy_source` only; reads the energy source's fuel contents, as `read_fuel` on
+LuaFurnaceControlBehavior / LuaAssemblingMachineControlBehavior; a per-entity toggle, not a prototype field;
+`circuit_read_contents` stays the sum of declared `show_in_gui` inventories, without modules); and
 with `circuit_outputs = "script"`: `enabled`, `sections`, `sections_count`, `add_section`, `get_section`,
 `remove_section`, the `LuaConstantCombinatorControlBehavior` set over the same `LuaLogisticSection` objects, so
 script output is serialised, blueprinted and pasted by the code that already does it for constant
@@ -544,9 +537,14 @@ p=580752). No recipes, mining, energy production, heat output or logistic-networ
 
 ## 8. GUI
 
-Assembled from widgets that exist for the parts, in a fixed order; nothing is drawn for an absent part. Every
-part already has its own GUI panel and tooltip lines on the entities that carry it today (energy sources,
-fluid boxes, effect receivers, crafters, circuit connectors, filtered inventories).
+S0 opens the container window with one labelled grid per inventory, stacked in declared order. S1 to S3 open
+the furnace window: energy panel top-left, input and storage grids left of the progress bar, output and trash
+right, module row below, circuit and logistics panels as on the assembler, with a read-fuel checkbox for
+burner machines. Ctrl-click and quick transfer follow SPEC 3.5.
+
+v0 caps the window at 4 inventories and 256 slots in total (Appendix C); v1 keeps the current 8 inventories /
+1,024 slots of section 1.1. The table lists the widgets in their fixed order; nothing is drawn for an absent
+part, and every part already has its own GUI panel and tooltip lines on the entities that carry it today.
 
 | Order | Part | Shown | Source widget |
 |---|---|---|---|
@@ -557,15 +555,15 @@ fluid boxes, effect receivers, crafters, circuit connectors, filtered inventorie
 | 5 | Module slots | slot row, crafter rules | crafter module row |
 | 6 | Fluid boxes | one fluid slot per box: fluid, amount, temperature | crafter fluid slots |
 | 7 | Settings | one widget per `show_in_gui` setting: checkbox or numeric field with min / max | existing textfield / checkbox |
-| 8 | Circuit panel | on wire connection: generic on/off section, read modes, `default_*_signal` pickers; `script` mode shows the sections read-only ("set by script") | chest / constant-combinator circuit panel |
-| 9 | Tooltip | status, energy, fluids, per-inventory counts (`show_contents_in_description`), settings, spoil modifier line ("items spoil 8x slower while powered"), runtime `set_tooltip_field` lines | the existing tooltip lines of each part |
+| 8 | Circuit panel | on wire connection: generic on/off section, read modes (a read-fuel checkbox for burner machines), `default_*_signal` pickers; `script` mode shows the sections read-only ("set by script") | chest / constant-combinator circuit panel |
+| 9 | Tooltip | status, energy, fluids, per-inventory counts (`show_contents_in_description`), settings, with Add-on A a spoil modifier line ("items spoil 8x slower while powered"), runtime `set_tooltip_field` lines | the existing tooltip lines of each part |
 | 10 | Factoriopedia | parts: inventories with role and size, energy source, cycle time, ingredients and products, module slots | prototype fields |
 
 Every GUI action is a normal input action (settings edit, filter edit, bar move) and replicates in multiplayer
 like a recipe change. `defines.relative_gui_type.composed_machine_gui` anchors mod panels (the pY dig site
 keeps its "scanned ores" panel there). Alt-mode draws the first product's icon when `products` is set,
 otherwise the module icons, otherwise nothing. The first release may ship a plain vertical stack without drag
-between inventories or sorting; this is the long pole of the implementation (`docs/WRITEUP.md`, section 10).
+between inventories or sorting; this is the long pole of the implementation (section 11, risk 1).
 
 ---
 
@@ -596,14 +594,14 @@ identity lost across undo) does not arise.
   behaviour. From a `container`: contents go to the first `storage` inventory, else the first `input`, else
   spill. Into a `container`: the first `storage`/`output` inventory moves. This is how existing chests get
   upgraded into the type.
-- **Upgrade planner**: same shape and superset inventories by name; `next_upgrade` validated at data stage,
-  arbitrary pairs at runtime; leftover estimate as containers.
+- **Upgrade planner**: Follows fast replace: same fast_replaceable_group and footprint; inventories transfer by
+  name. next_upgrade is validated at data stage for group, size and inventory names (a superset of the current names, same roles for shared names).
 - **Save / load.** A **part mask** (one bit per part present: each inventory slot 0-7, energy source and its
   kind, fluid boxes, process, modules, circuit, settings) followed by each present part's own existing
   serialiser (inventories, the energy source of the declared kind, effect receiver, circuit connector, and the
   updatable state for S1-S3), then process state (`progress` double, `bonus_progress` double, `cycle_active`,
   `pending_start` bits, `products_finished` u32, `restart_countdown` u16, `blocked_status` u8,
-  `next_update_tick` u32), then settings. The update list is rebuilt on load from the saved update mode, as
+  `update_countdown` u8), then settings. The update list is rebuilt on load from the saved update mode, as
   for any updatable entity; sleepers re-register on load.
   **A shape byte is not enough**: a shape does not say which inventories or which energy kind existed, so the
   mask carries that, and name-matched migration needs the old names. Those are written **once per
@@ -616,7 +614,7 @@ identity lost across undo) does not arise.
   another kind into a throwaway instance when the prototype's kind differs, so the stream stays consumable;
   for Wube to confirm); process removed -> cycle cancelled with refund; shape changed -> the instance is
   **re-instantiated as the class the current prototype implies**, reading only the parts present in the mask,
-  dropping the rest, attaching to the update list if the new shape ticks; `spoil_modifier.multiplier`
+  dropping the rest, attaching to the update list if the new shape ticks; with Add-on A, `spoil_modifier.multiplier`
   changed -> every affected stack re-stamped once (old out, new in). Entity renames use the normal migrations
   JSON. Removing the mod removes the entities like any type.
 - **Migrating a mod off a compound entity** (pY has saves with thousands of dig-site shells and hidden
@@ -658,7 +656,7 @@ the tool); heat output (gap 12); moving cores (gap 13); effect *broadcast* (the 
 brain and the Tiberium node stay beacons); circuit-driven cycle start; trigger effects on cycle start / finish
 without Lua (script trigger effects; the pY SUT smoke); item requests for non-module inventories in ghosts
 if risk 3 fails; `settings` of item / fluid / signal type; pause spoilage (`multiplier = 0`: no representation
-for it is known, section 1.3); per-entity `cycle_time` (use `local_effect.speed`).
+for it is known, Add-on A.2); per-entity `cycle_time` (use `local_effect.speed`).
 
 **One-field changes on existing types that this type does not replace:** `require_module` on
 `CraftingMachinePrototype` (pY farms, the largest-count target in `research/RESEARCH.md` section 5, are vanilla
@@ -667,16 +665,12 @@ crafters with recipes and score "no" under every design); `circuit_connector` wi
 
 **Risks, ranked:**
 1. GUI: the largest and least reusable piece (1200-2000 LOC is the honest floor, not 500).
-2. Inserter rules across several `input` / `storage` inventories: whether an inserter waiting to insert can
-   sleep, the automated insertion limit, drop-target selection, ctrl-click and quick transfer across roles
-   (the per-type special cases for crafter input and result slots, restricted slots, sorting and manual
-   transfer live here). Test every role combination.
+2. Drop and pickup across several inventories (section 3.5): tests for every role combination.
 3. Ghost item requests on a non-crafter: the ghost's request setup is assumed to be crafter-specific today;
    whether the generic `item-request-proxy` path covers module, fuel and declared-inventory requests on this
    type is UNVERIFIED.
-4. Spoil re-stamp hook points on every transfer path, and the freshness cap (section 1.3); the re-key itself
-   is assumed cheap (one reschedule; for Wube to confirm).
-5. `tick_interval` on the every-N-ticks schedule: the 195 cap and the schedule's period limit (section 3.4).
+4. Add-on A only, not v1: the spoil re-stamp hook points (Add-on A.4).
+5. tick_interval: whether a native every-N-ticks schedule can host this type, or the countdown baseline is used.
 6. Event flush placement in the tick and the tick attribution of post-flush changes (section 6).
 7. Quality: `quality_affects_size`, `quality_affects_energy_usage`, module quality bonuses; reuse the crafter
    rules verbatim.
@@ -716,7 +710,7 @@ current state is in `mod/component-lab/STATUS.md`.
 | CC `script` output | hidden `constant-combinator` wired to the core with a hidden wire; `LuaLogisticSection` writes | exact signals, one hidden entity | `ConstantCombinator` control behaviour + entity |
 | CC `read_working` / `cycle_finished` | the shell crafter's own control behaviour | exact | |
 | `settings` | `storage[unit_number]` + tags written in `on_player_setup_blueprint`, read from ghost tags on build | survives blueprints; **lost across undo** | handler cost separately |
-| `spoil_modifier` | an `on_nth_tick(N)` scan re-stamping `spoil_tick` over the inventory (cleaner than corrundum's `spoil_percent` nudge) | wrong cost model: O(slots) per period instead of per transfer; items inserted between scans are stamped late; the unstamp on removal cannot be done at all for inserter hands and cursors (no event) | over-counts the native part; report separately |
+| `spoil_modifier` (Add-on A) | an `on_nth_tick(N)` scan re-stamping `spoil_tick` over the inventory (cleaner than corrundum's `spoil_percent` nudge) | wrong cost model: O(slots) per period instead of per transfer; items inserted between scans are stamped late; the unstamp on removal cannot be done at all for inserter hands and cursors (no event) | over-counts the native part; report separately |
 | `power_state_changed`, `status_changed`, `inventory_changed`, `fluid_threshold` | **not emulable**; poll `energy` / `status` / `get_contents` (or `get_signals_changed()` on a wire, 2.1.21) / `get_fluid` on `on_nth_tick` | no | the whole poll is the saving |
 | `tick_interval` | the poll period | the same idea at Lua cost | |
 | updatable iff | each hidden entity is updatable per its own type; a passive shape on a bare container is exact; any powered shape costs one extra updatable entity | partial | hidden entities' columns |
@@ -727,7 +721,7 @@ current state is in `mod/component-lab/STATUS.md`.
 **Cannot be faithfully emulated (the benchmark marks these "not reproducible in Lua"):** a watcher at ~0 per
 tick; coalesced, ordered, engine-raised events; sleeping at crafter cost with wake on transfer; several
 inserter-reachable `input` inventories without hidden parts; per-transfer spoil stamping with correct unstamp
-on every exit path; blueprint / undo / upgrade / fast replace / clone without lifecycle Lua; `blocked_status`
+on every exit path (Add-on A); blueprint / undo / upgrade / fast replace / clone without lifecycle Lua; `blocked_status`
 and status-driven `draw_in_states` without render objects; `tick_interval` scheduling.
 
 **Calibration recipe** (`bench/README.md` rules apply: quiet box, `--cpus` pinned, N >= 2000, compare
@@ -741,12 +735,33 @@ the bench shows for idle furnaces within noise (`bench/RESULTS.md` section (a): 
 both chests and idle furnaces at N = 2000 and N = 20 000, and -1.4 vs 1.4 ns per instance whole at N = 2000),
 consistent with Rseding91's description of sleep as an O(1) removal from an intrusive list (Reddit, 2023); an
 electric sleeper is assumed still to pay drain and refill in the electric network update (section 2), which is
-not an `entityUpdate` cost. A shape at `tick_interval > 1` is assumed to run from the every-N-ticks schedule
-and land in no per-class column, so its attribution needs its own line.
+not an `entityUpdate` cost. A shape at `tick_interval > 1` runs behind a countdown on its shape's list and lands
+in that shape's column (section 3.4); only if Wube files it in an every-N-ticks schedule does its attribution
+need its own line.
 
 ---
 
 ## 13. Engine facts relied on, and their verification state
+
+**The five assumptions that matter most**, each with its fallback:
+
+1. **The drop and pickup rules of section 3.5 can be built on the crafter's hooks** (the per-entity-type
+   checks inserters and loaders already consult for drop and pickup targets). Fallback: inserter access is
+   limited to the crafter's own pair, one `input`-role and one `output`-role inventory; every other inventory
+   is `inserter_access = "none"` and reachable by GUI and script only.
+2. **No-power behaviour.** The electric network is assumed to have no per-consumer wake list, so an instance
+   with `no_power` or `low_power` stays awake at zero progress, as a crafter in a brownout is assumed to
+   (section 3.2). Fallback: that is already the baseline; if crafters do sleep on power, the type sleeps the
+   same way, and `tick_interval` remains the lever for prototypes that mostly wait on power.
+3. **Whether a native every-N-ticks schedule exists for `tick_interval`.** Fallback: the countdown on the
+   shape's per-type list (section 3.4), which needs no schedule and is the baseline.
+4. **Synchronous versus queued event delivery.** The spec queues events and raises them right after the
+   entity update (section 6). Fallback, and the v0 choice if Wube prefers it: raise synchronously, exactly as
+   `raise_on_crafted` does today.
+5. **Spoil add-on: a spoil tick past full freshness** inside the declared inventory (Add-on A.3). Fallback: a
+   stored stretched remaining time; if neither is possible, Add-on A is dropped and nothing else changes.
+
+The table below lists every engine fact the spec rests on.
 
 Evidence classes: **measured** = `bench/RESULTS.md` or `model/RESULTS.md`; **public** = the Lua API, the
 prototype documentation or the changelog; **Wube statement** = a public post by a Wube developer, cited by
@@ -762,8 +777,8 @@ date and thread; **assumed** = inferred from the engine's observable behaviour, 
 | Electric network has no per-consumer wake list | section 3.2 | assumed |
 | Drain is charged without an entity update | idle electric machines draw drain in the power statistics (game behaviour) while idle furnaces measure at chest cost in `entityUpdate` (`bench/RESULTS.md` section (a)) | assumed, consistent with measurement; whether `disabled_by_script` detaches the source UNVERIFIED |
 | Burner must tick to refuel | section 2 | assumed |
-| Every-N-ticks scheduling exists | Rseding91 2024 (t=113632): beacons "do not update every tick" | Wube statement; the period limit, the behaviour above it, and that such updates sit outside per-class timing assumed / UNVERIFIED |
-| Spoilage: absolute spoil tick, tick-keyed schedule | `LuaItemStack::spoil_tick` (public API); boskid (p=678356) on what the spoilage optimisations rule out | public / Wube statement; re-key cost, transfer hook points, the freshness cap, split and merge handling assumed / UNVERIFIED |
+| Some entities skip ticks; a reusable every-N-ticks schedule may exist | Rseding91 2024 (t=113632): beacons "do not update every tick" | Wube statement; whether a schedule can host this type UNVERIFIED; the countdown baseline (section 3.4) needs none |
+| Spoilage (Add-on A only): absolute spoil tick, tick-keyed schedule | `LuaItemStack::spoil_tick` (public API); boskid (p=678356) on what the spoilage optimisations rule out | public / Wube statement; re-key cost, transfer hook points, a spoil tick past full freshness assumed / UNVERIFIED |
 | Transfer notification on every path wakes sleepers | inserters sleeping on chests wake when contents change (game behaviour) | assumed; coverage of every script path (`LuaInventory::insert`) UNVERIFIED |
 | `raise_on_crafted` handlers run synchronously | `raise_on_crafted` / `LuaRecipePrototype::on_crafted_event` (public, 2.1.12) | assumed; deferral is new code |
 | Control behaviours are a separate updatable component | separate `controlBehavior` column in `--benchmark-verbose` output (`bench/RESULTS.md`) | measured (the column exists); the registration rule assumed |
@@ -771,9 +786,78 @@ date and thread; **assumed** = inferred from the engine's observable behaviour, 
 | Per-prototype event ids | the `custom-event` prototype; `LuaRecipePrototype::on_crafted_event` (2.1.12) | public; cost when not opted in (one compare) assumed |
 | Reused Lua accessors | `LuaEntity` `crafting_progress`, `bonus_progress`, `products_finished`, `is_crafting`, `crafting_speed`, `set_inventory_size_override`, `is_updatable`, `custom_status`, `local_effect` | public API |
 | `EntityStatus` enum and diode | `defines.entity_status` and `defines.entity_status_diode` 2.1.24 (no `no_food`, no `no_minimum_temperature`; `low_temperature` exists) | solid (docs) |
-| Per-instance sizes (section 10) | model layouts (`model/RESULTS.md`, object sizes); the engine's own part sizes are not stated in this copy | measured in the model only; engine sizes for Wube |
+| Per-instance sizes (section 10) | model layouts (`model/RESULTS.md`, object sizes); the engine's own part sizes are not stated here | measured in the model only; engine sizes for Wube |
 | Memory accounting hook | section 10 | assumed |
 | Inventories are not targetable on their own | boskid ~2023 (p=580752) | Wube statement |
+
+---
+
+## Add-on A: spoil modifier
+
+Not part of v1. This is the one part that touches shared code (a re-stamp on each transfer path into and
+out of a declared inventory), so it is offered separately and can be refused on its own; cutting it changes
+nothing else in the spec.
+
+### A.1 Field on `ComposedInventory`
+
+| Field | Type | Default | Rule |
+|---|---|---|---|
+| `spoil_modifier` | `ComposedSpoilModifier` | nil | Section A.2. Not on `trash`. |
+
+### A.2 `ComposedSpoilModifier`
+
+| Field | Type | Default | Rule |
+|---|---|---|---|
+| `multiplier` | double | required | 0.01-100. **m > 1 slows spoilage.** On insert into the inventory: `remaining = spoil_tick - now; spoil_tick = now + remaining * m`. On removal (inserter hand, cursor, script `remove`/`transfer`, mining, death spill, fast replace): `spoil_tick = now + remaining / m`. Integer `MapTick` arithmetic, truncating; at most one tick lost per transfer. |
+| `requires_power` | boolean | false | The modifier applies only while the energy source is *powered*: it can currently supply energy (fuel, electricity, fluid or temperature available). On a transition every spoilable stack in the inventory is re-stamped once by `m_new / m_old` (O(slots) per transition, never per tick). Requires `energy_source`; makes the prototype at least S1. |
+| `items` | array[`ItemID`] | all spoilable | Only these items are re-stamped. |
+
+`multiplier = 0` (pause) is **reserved, not offered**. A stack carries one absolute spoil tick
+(`LuaItemStack::spoil_tick`, public API; 0 when it does not spoil), and nothing in the public API returns a
+stack that has started spoiling to a not-started or paused state. Pause is therefore assumed to need a new
+engine state (a frozen remaining time plus removal from the spoil schedule) or a periodic re-stamp that drifts
+by up to one period, for Wube to confirm; multiply is a one-shot re-key per transfer.
+
+Example (the cold box): an electric 10 kW machine with `activity = "inventory_not_empty"`,
+`activity_inventories = {"cold"}`, and on the `cold` inventory
+`spoil_modifier = {multiplier = 8, requires_power = true}`.
+
+### A.3 Engine assumptions
+
+What this part assumes about the engine, inferred from its observable behaviour and the public API, for Wube
+to confirm: spoilage is driven by a tick-keyed schedule, not by scanning inventories, so a re-stamp is one
+reschedule of the stack with no search, no per-inventory structure and no scan; a machine holding spoilables
+is revisited by the engine when a stack inside it spoils, so a sleeping composed machine holding spoilables
+needs no polling to notice a spoil result; and a move of an already-spoiling stack between inventories does
+not touch its spoil tick, so the re-key must be added on every transfer path into and out of the declared
+inventory (inserter hand, loader, cursor, script, crafting moves, mining, death spill). The hook points, not
+the re-key, are the real cost. The native re-stamp must not be capped at now + full duration. With a cap, the
+removal rule (remaining / m) would hand back less life than the stack came in with: any stack with more than
+1/m of its life left would lose time on every round trip (a fresh stack through an m = 8 box would come out
+with 1/8 of its life). A Lua write of spoil_tick past full freshness raises an error (measured: harness test
+cl-cold-box, KNOWN LIMIT). So the native path needs either a spoil tick allowed past full duration inside the
+declared inventory, or a stored stretched remaining time, and the GUI spoil bar clamps its display at 100 %.
+Of the open questions below, this is the one the part cannot ship without. Order on every insert path: the
+incoming stack is re-stamped into the inventory's clock before any merge, so merges average two ticks on the
+same clock; on every extract path the extracted part is re-stamped after the split and the remainder is
+untouched. No filter restriction is needed. boskid's position (p=678356, full read) is that per-move
+spoil-tick adjustment is what the spoilage optimisations rule out; this part is exactly that cost, confined
+to transfers into and out of one declared inventory of one opt-in prototype, and the inventory knows its
+owner, so the "items don't know their surface" objection does not apply. He did not permit it; it has to be
+argued against the cost of one re-key per transfer and the per-path hook.
+
+### A.4 What the add-on changes elsewhere, and its risk
+
+- **Validation** (adds to section 1.9): `spoil_modifier.requires_power` requires `energy_source`; no
+  `spoil_modifier` on `trash`.
+- **Shapes** (adds to section 2): `spoil_modifier.requires_power` is a tick-watch; a spoil modifier without
+  `requires_power` is never a shape axis.
+- **Update** (section 4, step 7): on a powered-state transition, every `requires_power` inventory is
+  re-stamped once.
+- **GUI** (section 8, tooltip): a spoil modifier line ("items spoil 8x slower while powered").
+- **Migration** (section 9): a changed `multiplier` re-stamps every affected stack once.
+- **Risk:** the re-stamp hook points on every transfer path, and the past-full-freshness spoil tick (A.3); the
+  re-key itself is assumed cheap (one reschedule; for Wube to confirm).
 
 ---
 
@@ -785,7 +869,7 @@ unit, crafter with recipes, generator).
 
 | Mod / entity | Today | Verdict | As |
 |---|---|---|---|
-| corrundum `ice-box` | container + nth(53) rewriting every stack | **full** (semantics change) | S1 burner, `activity = "inventory_not_empty"`, `spoil_modifier` m = 8 `requires_power`; loses the pause-below-50 % / rewind, per-stack dry-ice draw and Aquilo / Frozeta exemption |
+| corrundum `ice-box` (cold box) | container + nth(53) rewriting every stack | **full**, with Add-on A (semantics change) | S1 electric 10 kW, `activity = "inventory_not_empty"`, `activity_inventories = {"cold"}`, and from Add-on A `spoil_modifier = {multiplier = 8, requires_power = true}` on `cold`; loses the pause-below-50 % / rewind, per-stack dry-ice draw and Aquilo / Frozeta exemption |
 | corrundum `pressure-lab` | lab + nth(45) | no | lab core; a quality filter on lab input is a one-field request elsewhere |
 | pY `dino-dig-site` | assembler shell + hidden food container + 2 entities per trip + nth(61) | **full** | S3: food / ore / trash inventories, creature modules, `no_modules` condition, 20-30 s cycle, `consume_at = "script"`, `cycle_finished`; units optional as visuals |
 | pY bioport | assembler shell + unit couriers | partial | the shell collapses to S3; couriers stay units |
@@ -836,3 +920,36 @@ The parts proposed beyond v1 (generation, heat output, circuit input, effect bro
 typed settings, wildcard ingredients, continuous process, tile and surface products, logistic roles, small
 S0 fields), with the engine mechanism each wraps, its shape effect, the rows it unlocks and a staging plan,
 are in `docs/V2-PARTS.md`. Nothing in Appendix B changes v1; every v2 part obeys section 0.
+
+---
+
+## Appendix C: Delivery order
+
+**v0: the machine shape alone.** One new type, `composed-machine`, that accepts only prototypes resolving to
+S3 (process plus an energy source) and S0 (no process, no tick-watch), which comes free because it is
+constructed like a container and never updated. S3 behaves as the furnace does, with recipe selection removed.
+The process is fixed (`cycle_time`, ingredients and products) or script-consumed (`consume_at = "script"`,
+`start = "automatic"` or `"script"`). The machine has 1 to 4 named inventories with input, output, storage and
+trash roles and the drop and pickup order of section 3.5. It takes any vanilla energy source, module slots with
+`local_effect`, the assembler's circuit reads (contents, working, finished, `read_fuel`), the built-in
+statuses, exactly two condition types, `module_slot_filled` and `inventory_below` (they map onto the existing
+`no_modules` and `full_output` statuses, and the dig site needs both), and two opt-in events,
+`cycle_started` and `cycle_finished`, raised as `raise_on_crafted` is raised today (synchronously, unless Wube
+prefers the queue of section 6). Its window is the furnace window with one grid per inventory, capped at
+4 inventories and 256 slots (section 8). That alone covers the dig site, the hearth (`activity = "always"`),
+the timed converter, the creep collector and the seep derrick, and it gives S0 multi-inventory stores with
+real inserter rules. It touches no shared transfer path and no vanilla type.
+
+**Later steps**, each separately refusable:
+
+- the S1 watcher and S2 timer shapes;
+- `tick_interval` (section 3.4);
+- conditions beyond `module_slot_filled` and `inventory_below`;
+- settings (section 1.6);
+- script circuit outputs (`circuit_outputs = "script"`);
+- fluid thresholds (section 1.8);
+- the `inventory_changed`, `power_state_changed` and `status_changed` events;
+- the deferred event queue (section 6);
+- the full v1 limits of 8 inventories and 1,024 slots.
+
+**Add-on**, refusable on its own: the spoil modifier (Add-on A).

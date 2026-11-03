@@ -230,7 +230,7 @@ render churn), dig sites (assembler-as-shell, closest to the proposed entity), b
 
 ---
 
-## 7. Second pass (2026-11-02): dropped features, Wube's on-record objections, GitHub
+## 7. Later additions (2026-11-02): dropped features, Wube's on-record objections, GitHub
 
 - [forum-dropped-features.md](forum-dropped-features.md): 53 more threads read in full through the browser (none overlapping sections 1-6),
   29 of them in the "Won't implement" subforum (f=221, pages 1-7). 25 describe a hidden-entity workaround in use,
@@ -239,7 +239,7 @@ render churn), dig sites (assembler-as-shell, closest to the proposed entity), b
   12, "doesn't work that way" 11, maintenance 3, none 5. Two reversals: offshore-pump `energy_source` (refused
   2020, shipped 2.0) and the runtime per-entity effect (`LuaEntity::local_effect`, 2.1.13), which retires pY's
   TURD hidden beacons today. The six objections the proposal must answer (t=15257, t=69180, t=88647, t=61277,
-  t=113632/t=132603, t=134525) and the answers are in [../docs/WRITEUP.md](../docs/WRITEUP.md) section 3.
+  t=113632/t=132603, t=134525) and the answers are in [../docs/WRITEUP.md](../docs/WRITEUP.md) section 2.
 - [github-issues.md](github-issues.md): the mods' own issue trackers, swept read-only with the GitHub CLI (five search angles,
   every finding re-opened and verified, classified against SPEC). 176 findings verified in 100 repositories (78 portal mods, 5.79 M downloads): 30 abandoned features, 78 hidden-entity workarounds, 32 polling loops, 13 prototype-per-value patterns. 35 fixed by v1, 60 by a v2 part (54 % inside the design), 65 other cores, 11 cross-entity, 5 VCRAFT. 87 rejected, 49 of them because 2.0/2.1 already shipped the piece (`local_effect`, `on_blueprint_settings_pasted`, infinity cargo wagon, valve, `raise_on_crafted`). Two findings are from the author's own account (planet-muluna #376, Corrundum #78) and are flagged, not cited. New gaps: rotatable storage, multi-item filters, blueprint-carried settings, placement rules.
 - Gap 7 (runtime-settable parameters) is partly closed by 2.1.13's `local_effect` for effect receivers; the

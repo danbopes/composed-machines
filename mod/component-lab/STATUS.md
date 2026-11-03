@@ -1,12 +1,12 @@
 # component-lab status
 
 Integrated on 2026-11-02 against Factorio 2.1.24. The full suite is green apart from
-eleven tests that fail on purpose. Each one is named `KNOWN-LIMIT` or `KNOWN GAP` and
+ten tests that fail on purpose. Each one is named `KNOWN-LIMIT` and
 documents an emulation limit (see "Emulation gaps" below).
 
-**Totals: 299 tests, 288 passed, 11 failed (all deliberate).** Last run 2026-11-03; the
-review fixes (below) were re-checked with `--fresh`, and before them three `--fresh` runs
-in a row and one warm run gave the same result. A fresh run takes about 7 s, a warm one 3 s.
+**Totals: 301 tests, 291 passed, 10 failed (all deliberate).** Last run 2026-11-03 with
+`--fresh` (6.4 s wall), after the fluid chest became a rotating container and the
+ghost-request evidence suite was added. A fresh run takes about 7 s, a warm one 3 s.
 
 ## Reproduce
 
@@ -37,7 +37,7 @@ script, a suite file and bench cells (`component/bench/builds/`).
 | Entity | Shape | Core / hidden parts | Tests | Result |
 |---|---|---|---|---|
 | library (`_lib.lua`, `cl-libtest*`, plus the load marker) | S0-S3 | all part kinds | 27 | 27 pass |
-| `cl-fluid-chest`, `cl-fluid-chest-watch` | S0 / S1 | container + storage-tank | 14 | 13 pass, 1 KNOWN GAP |
+| `cl-fluid-chest`, `cl-fluid-chest-watch` | S0 / S1 | container (`direction_count = 4`) + storage-tank | 14 | 14 pass |
 | `cl-signal-chest` | S0 | container + constant-combinator | 12 | 12 pass |
 | `cl-fuelled-chest` | S1 | container + burner reactor | 16 | 16 pass |
 | `cl-cold-box` | S1 | container + EEI | 19 | 19 pass |
@@ -53,12 +53,10 @@ script, a suite file and bench cells (`component/bench/builds/`).
 | `cl-waste-heat-smelter` | S3 + heat part | electric assembler shell + hidden heat-interface | 15 | 13 pass, 2 KNOWN-LIMIT |
 | `cl-mass-driver` | S3, consume_at = finish | 4 MW electric assembler shell, 40 MJ buffer, Lua projectile per shot | 19 | 18 pass, 1 KNOWN-LIMIT |
 | `cl-tuned-furnace` | S3 + circuit-bound setting | electric assembler shell, `local_effect` speed, 30-tick signal pass, no hidden parts | 17 | 16 pass, 1 KNOWN-LIMIT |
+| ghost requests (`cl-ghost-requests.lua`, vanilla iron chest + heating tower, robot fixture) | | | 2 | 2 pass |
 | leftovers check (`zz-leftovers.lua`) | | | 1 | pass |
 
-The eleven deliberate failures:
-- `cl-fluid-chest: KNOWN GAP rotated blueprint placement rotates the tank`: a
-  container ghost carries no direction, so a blueprint pasted rotated leaves the tank
-  facing its tagged direction.
+The ten deliberate failures:
 - `cl-dig-site: KNOWN-LIMIT rig: an inserter must not pick from food`: a proxy
   exposes its inventory both ways, and the 2.1 bar only gates insertion.
 - `cl-dig-site: KNOWN-LIMIT wires cannot read the food (it lives in a hidden container)`:
@@ -278,13 +276,19 @@ the shell winning pickup.
 
 **Rotation, blueprints, ghosts and undo**
 
-14. A container core has no direction. The fluid chest rotates through custom
-    inputs, and a rotated blueprint or a rotated cursor build loses the orientation
-    (KNOWN GAP test).
+14. Containers rotate since 2.1.7 (`direction_count`), so the fluid chest's core
+    carries its facing through ghosts, blueprints and rotated builds, and the test
+    `cl-fluid-chest: rotated blueprint placement rotates the tank` passes. The
+    remaining cost is a script handler on every rotate, build and blueprint path to
+    turn each hidden part with the core.
 15. The ghost and blueprint of a hidden inventory cannot carry item requests. Food
     in the dig site and fuel in the fuelled chest are dropped. The fuel request is
     re-issued from tags as a proxy aimed at the reactor, which a native ghost would
     show and edit itself.
+    The insert plan itself is not the limit: on vanilla entities, robots deliver a
+    ghost's plan into a container's chest inventory and into a burner reactor's fuel
+    inventory (`cl-ghost-requests.lua`). A script `revive` does not fulfil a plan; it
+    leaves an item-request-proxy holding it for robots.
 16. Settings live in storage, so an undo or a death ghost rebuilds the entity
     without them (the seep derrick's depletion returns as 0).
 17. A fixed-recipe shell blueprints its recipe name.

@@ -1,8 +1,8 @@
 # GitHub evidence: features modders dropped, crippled or hacked because of the modding API
 
-Research note for the composed-machine proposal. Compiled 2026-11-02
-from five finder notes and two independent verification passes (verify-1, verify-2); those working notes are not
-included in the public repository. Every quote below was re-fetched and matched verbatim
+Research note for the composed-machine proposal, 2026-11-02.
+Compiled from two independent verification passes.
+Every quote below was re-fetched and matched verbatim
 (whitespace-normalised) by a verifier; quotes are capped at 40 words. People are named by role, not by name.
 Classifications refer to [../docs/SPEC.md](../docs/SPEC.md) (v1), [../docs/V2-PARTS.md](../docs/V2-PARTS.md) (v2 parts) and the blocker codes in
 [CONVERSION-CANDIDATES.md](CONVERSION-CANDIDATES.md).
@@ -441,7 +441,7 @@ Exotic Industries neutron collector, the Alt-F4 #55 hidden beacon). `on_blueprin
 ## 6. Methods
 
 - **When and how.** All sweeps ran on 2026-11-02, read-only, with the `gh` CLI logged in as the author's account.
-  Nothing was posted, starred or forked. Five angles ran in parallel, each writing its own working note (not included in the public repository):
+  Nothing was posted, starred or forked. Five angles ran in parallel, each writing its own working note; this file is their merged and verified result:
   - `keyword.md`: about 162 search calls. These were keyword queries through `gh api search/issues` (issues and PRs, open and closed),
     4 paged queries for issues linking `viewtopic.php?f=28` (Wube's Modding interface requests subforum), 8 GraphQL
     `type:DISCUSSION` queries and 10 `search/code` queries for README/changelog "engine limitation" / "API

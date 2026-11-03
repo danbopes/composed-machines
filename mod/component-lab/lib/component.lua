@@ -392,7 +392,21 @@ function component.define(spec)
     end
     core.quality_affects_inventory_size = first.quality_affects_size or false
     core.default_status = spec.default_status
+    -- Containers take direction_count since 2.1.7, so a ghost or blueprint
+    -- carries the facing and the hidden tanks follow it like any other core.
     circuit_from(core, like, spec)
+    local dirs = spec.direction_count or 1
+    if dirs > 1 then
+      core.direction_count = dirs
+      local pic = core.picture
+      if pic and not pic.north then core.picture = {north = pic, east = pic, south = pic, west = pic} end
+      local cc = core.circuit_connector
+      if cc and #cc ~= dirs then
+        local one = cc[1] or cc
+        core.circuit_connector = {}
+        for i = 1, dirs do core.circuit_connector[i] = table.deepcopy(one) end
+      end
+    end
   elseif ctype == "assembling-machine" and spec.process then
     recipe_name = spec.name .. "-cycle"
     shell_fields(core, spec, recipe_name)

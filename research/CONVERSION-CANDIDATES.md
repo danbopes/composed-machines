@@ -1,7 +1,7 @@
 # Conversion candidates: every building that could become a `composed-machine`
 
-Consolidates four sweep notes, local-a-m (a-m), local-n-z (n-z), base-game (base) and external-mods (ext) (sweep
-notes, not included in the public repository), plus [RESEARCH.md](RESEARCH.md) section 2 (RES §2) and
+Consolidates four per-source survey notes, local-a-m (a-m), local-n-z (n-z), base-game (base) and external-mods (ext)
+(row citations such as "n-z F1" refer to them; this file is their merged result), plus [RESEARCH.md](RESEARCH.md) section 2 (RES §2) and
 [pyanodons.md](pyanodons.md), with the verdicts SPEC Appendix A (AppA, [../docs/SPEC.md](../docs/SPEC.md)) gives the
 RESEARCH §2 entries. Instance counts come from [../bench/RESULTS.md](../bench/RESULTS.md)
 section (d) (census of `pY_134`, `pY_Season_3_A2_Fixed`, `pY_Fixed`). Portal download counts for local-library and
