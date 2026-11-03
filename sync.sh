@@ -118,6 +118,7 @@ if (( with_mod )); then
   cp "$harness/projects/component-lab.json" "$repo/harness/component-lab.json"
   sed -i -E 's#"source": *"[^"]*"#"source": "../mod/component-lab"#' "$repo/harness/component-lab.json"
   rm -f "$repo/mod/README.md" "$repo/harness/README.md"
+  sed -i -E 's#~/factorio/component/mod/ws/#mod/ws/#g' "$repo"/mod/component-lab/*.md
   sed -i -E \
     -e 's#`component/design/SPEC\.md`#`../../docs/SPEC.md`#g' \
     -e 's#`component/design/TEST-ENTITIES\.md`#`../../docs/ENTITIES.md`#g' \

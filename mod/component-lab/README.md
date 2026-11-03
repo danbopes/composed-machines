@@ -18,7 +18,7 @@ prototypes/entities/<name>.lua   YOUR prototype file
 scripts/entities/<name>.lua      YOUR handler table
 data.lua, control.lua        already require every entity file             (shared, do not edit)
 ~/factorio/ai-harness/suites/component-lab/<name>.lua   YOUR tests
-~/factorio/component/mod/ws/<name>/                     YOUR harness workspace
+mod/ws/<name>/                     YOUR harness workspace
 ```
 
 Edit only your three files. If the library is missing something, report it rather
@@ -27,7 +27,7 @@ than patching `lib/` or `scripts/*.lua`; parallel builders share them.
 ## Running tests
 
 ```bash
-cd ~/factorio/component/mod/ws/<name>
+cd mod/ws/<name>
 ~/factorio-harness/.venv/bin/fh test component-lab --fresh      # _lib.lua + your suite
 ~/factorio-harness/.venv/bin/fh test component-lab --keep       # leave the server up
 ~/factorio-harness/.venv/bin/fh rcon --project component-lab expr "game.tick"
@@ -303,7 +303,7 @@ Smoke-test a cell from your own workspace (small `n`, never from
 `~/factorio/ai-harness`, never `make_save.py`: it boots the shared server):
 
 ```bash
-cd ~/factorio/component/mod/ws/<name>
+cd mod/ws/<name>
 FH=~/factorio-harness/.venv/bin/fh; B=~/factorio/component/bench/builds
 $FH test component-lab --keep
 for v in cl-<x> native-<x>; do
