@@ -1,13 +1,18 @@
-# Composed-machine benchmarks and cost model
+# Composed machines
+
+**Read the proposal:** https://danbopes.github.io/composed-machines/ (the same page as
+`docs/index.html`). The documents behind it: the [writeup](docs/WRITEUP.md), the
+[v1 specification](docs/SPEC.md), the [parts beyond v1](docs/V2-PARTS.md), the
+sixteen test entities ([1 to 8](docs/ENTITIES.md), [9 to 16](docs/TEST-ENTITIES-2.md))
+and the [research notes](research/) (forum and GitHub sweeps, mod library survey).
 
 Measurements and a small C++ model behind a proposal for a new modding entity
 type in Factorio 2.1: a **composed machine**, whose parts (inventories, a
 crafting timer, an energy source, fluid boxes) are fixed when the prototype
 loads, which joins the update list only if one of its parts needs ticking, and
-which reports to scripts through events instead of per-tick polling. The
-proposal text itself is not in this repository. This repository holds the
-numbers it cites and the tools that produced them, so they can be checked and
-rerun.
+which reports to scripts through events instead of per-tick polling. This
+repository holds the proposal, the numbers it cites and the tools that produced
+them, so they can be checked and rerun.
 
 There are two halves:
 
@@ -385,7 +390,9 @@ bench/builds/      one Lua builder per world; _common/_grid/_cells are shared
 bench/census-mod/  one-tick mod that counts entities by prototype in a save
 bench/results/     raw results: one JSON line per benchmark run, census JSON per pY save
 bench/RESULTS.md   generated report (sections a-d) plus the hand-written notes
-docs/              ENTITIES.md (all sixteen emulated entities, summary), TEST-ENTITIES-2.md (second-pass specs)
+docs/              index.html (the proposal page, served by GitHub Pages), WRITEUP.md, SPEC.md, V2-PARTS.md,
+                   ENTITIES.md and TEST-ENTITIES-2.md (the sixteen emulated entities)
+research/          forum and GitHub sweeps, mod library and Pyanodons surveys, conversion candidates
 mod/               component-lab, the Lua reference mod (lib/, scripts/, prototypes/, STATUS.md, REVIEW*.md)
 harness/           the mod's harness suites (suites/component-lab/) and project file
 ```

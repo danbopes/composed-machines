@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A proposal for Factorio 2.1: one new entity type composed at load time from parts the engine already has, with what today's hidden-entity fakes cannot do, a C++ cost model, in-engine benchmarks and a reference mod.">
+<style>:root{color-scheme:light} body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+<title>Composed Machines</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (about 70ch) on a cool steel page; dark graphite bands for the opener and the verdict; charts drawn to scale in SVG inside the column. */
+:root {
+  --bg: #f1f3f6;
+  --surface: #ffffff;
+  --fg: #171a1f;
+  --muted: #5b6372;
+  --rule: #d6dbe2;
+  --accent: #d9661a;
+  --band: #202428;
+  --band-fg: #eef0f3;
+  --band-muted: #aab1bc;
+  --ok: #1d7a46;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --grid: #e3e7ec;
+  --font-display: "Titillium Web", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --surface: #1e2126; --fg: #eceef1; --muted: #a4abb6; --rule: #2f353d;
+    --accent: #f08a35; --band: #0e1012; --band-fg: #eef0f3; --band-muted: #aab1bc; --ok: #4fc47f;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --grid: #2a2f36;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --surface: #1e2126; --fg: #eceef1; --muted: #a4abb6; --rule: #2f353d;
+  --accent: #f08a35; --band: #0e1012; --band-fg: #eef0f3; --band-muted: #aab1bc; --ok: #4fc47f;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --grid: #2a2f36;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.55; margin: 0; }
+.band { background: var(--band); color: var(--band-fg); }
+.inner { max-width: 72ch; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0; min-width: 0; }
+header.band .inner { padding-block: 44px 36px; }
+.eyebrow { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.12em; font-size: 13px; font-weight: 600; color: var(--accent); margin: 0 0 10px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(38px, 7vw, 58px); line-height: 1.02; margin: 0 0 14px; text-wrap: balance; letter-spacing: -0.01em; }
+.lede { font-size: 19px; line-height: 1.5; color: var(--band-fg); max-width: 60ch; margin: 0; text-wrap: pretty; }
+.lede strong { color: #ffffff; }
+.meta { color: var(--band-muted); font-size: 14px; margin-top: 22px; font-family: var(--font-mono); }
+main .inner { padding-block: 8px 64px; }
+section { margin-top: 44px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; margin: 0 0 12px; text-wrap: balance; }
+h2 small { display: block; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--accent); margin-bottom: 6px; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 26px 0 8px; }
+p { margin: 0 0 14px; text-wrap: pretty; }
+ul, ol { margin: 0 0 14px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+a { color: var(--accent); }
+code, pre { font-family: var(--font-mono); font-size: 0.86em; }
+pre { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; overflow-x: auto; line-height: 1.45; margin: 14px 0 18px; }
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 26px 0 8px; }
+.verdict > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.verdict .k { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.verdict .v { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.1; }
+.verdict .v.ok { color: var(--ok); }
+.verdict .s { font-size: 14px; color: var(--muted); margin-top: 4px; }
+figure { margin: 22px 0 26px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 16px 10px; min-width: 0; }
+figure h4 { font-family: var(--font-display); font-size: 17px; font-weight: 600; margin: 0 0 2px; }
+figure .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; line-height: 1.45; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); margin: 0 0 10px; }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.tip { position: fixed; pointer-events: none; background: var(--fg); color: var(--bg); font-family: var(--font-mono); font-size: 13px; padding: 6px 9px; border-radius: 5px; transform: translate(-50%, -130%); white-space: nowrap; z-index: 20; }
+.tip[hidden] { display: none; }
+.tablewrap { overflow-x: auto; margin: 14px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--font-display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td.n, th.n { text-align: right; font-family: var(--font-mono); font-size: 14px; }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.twocol > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.twocol h4 { font-family: var(--font-display); font-size: 16px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.twocol ul { margin: 0; padding-left: 18px; font-size: 15px; }
+.quote { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; margin: 16px 0; color: var(--fg); font-style: italic; }
+.quote cite { display: block; font-style: normal; font-size: 14px; color: var(--muted); margin-top: 4px; }
+.pill { display: inline-block; font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--rule); color: var(--muted); margin-left: 6px; vertical-align: 2px; }
+.note { font-size: 14px; color: var(--muted); }
+.unlock { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 16px 0 10px; }
+.unlock > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.unlock h4 { font-family: var(--font-display); font-size: 17px; margin: 0 0 6px; }
+.unlock p { font-size: 15px; margin: 0 0 6px; }
+.unlock .today { font-size: 13px; color: var(--muted); }
+@media (max-width: 560px) { .twocol { grid-template-columns: 1fr; } body { font-size: 16px; } }
+@media (prefers-reduced-motion: no-preference) { .bar { transition: opacity .15s; } }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Additions, revision 4: hero diagram, contents bar, API cards, timeline */
+.hero-fig { margin: 30px 0 0; }
+.hero-fig svg { width: 100%; height: auto; display: block; }
+.hero-fig figcaption { color: var(--band-muted); font-size: 14px; margin-top: 8px; line-height: 1.45; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 22px 0 0; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-family: var(--font-display); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+nav.toc a { color: var(--muted); text-decoration: none; }
+nav.toc a:hover { color: var(--accent); }
+nav.toc a b { color: var(--accent); font-weight: 700; margin-right: 4px; }
+.api { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 18px 0 8px; }
+.api > article { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.api header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 14px 8px; border-bottom: 1px solid var(--rule); }
+.api header h4 { font-family: var(--font-display); font-size: 17px; margin: 0; }
+.api .stage { font-family: var(--font-display); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); white-space: nowrap; }
+.api pre { margin: 0; border: 0; border-radius: 0; background: transparent; padding: 12px 14px; font-size: 13px; line-height: 1.45; flex: 1; }
+.api .today { padding: 10px 14px 12px; border-top: 1px dashed var(--rule); font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.api .today b { color: var(--fg); font-weight: 600; }
+.api .meas { padding: 8px 14px 12px; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--rule); }
+.api .meas b { color: var(--ok); font-weight: 500; }
+.tl { list-style: none; margin: 18px 0 8px; padding: 0 0 0 26px; border-left: 2px solid var(--rule); }
+.tl li { position: relative; margin: 0 0 14px; padding-left: 10px; }
+.tl li::before { content: ""; position: absolute; left: -33px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.tl li.no::before { background: var(--series-2); }
+.tl li.yes::before { background: var(--ok); }
+.tl li.ask::before { background: var(--series-1); }
+.tl .y { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-right: 8px; }
+.tl .who { font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-left: 6px; }
+@media (max-width: 560px) { .api { grid-template-columns: 1fr; } }
+/* Additions, revision 5: capability matrix marks, "cannot" rows on the API cards, the dig-site figure */
+.api .cannot { padding: 8px 14px 10px; border-top: 1px dashed var(--rule); font-size: 13.5px; color: var(--fg); line-height: 1.45; }
+.api .cannot b { color: var(--series-2); font-weight: 600; }
+.api .cannot ul { margin: 4px 0 0; padding-left: 18px; }
+.api .cannot li { margin-bottom: 3px; }
+table.gaps td:first-child { font-weight: 600; width: 22%; }
+table.gaps td { font-size: 14.5px; }
+table.gaps .mark { display: inline-block; font-family: var(--font-mono); font-weight: 600; font-size: 13px; margin-right: 6px; min-width: 1.1em; }
+.mark.no { color: var(--series-2); } .mark.part { color: var(--accent); } .mark.yes { color: var(--ok); }
+table.gaps td.ok { color: var(--fg); }
+.legend .no::before { background: var(--series-2); } .legend .part::before { background: var(--accent); } .legend .yes::before { background: var(--ok); }
+.srcs { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+
+<header class="band">
+  <div class="inner">
+    <p class="eyebrow">Factorio modding proposal</p>
+    <h1>Composed Machines</h1>
+    <p class="lede">Factorio 2.1 is the last major release. After it, the modding scene carries the game. Today a modder who wants a building the engine has no type for glues hidden entities together with Lua loops. The result cannot be wired, opened, blueprinted or read like a real building, and it costs UPS on top. This proposes <strong>one new entity type built from parts the engine already has</strong>, fixed at load time, that ticks only when it must. Viable, measured, about one developer-season for v1, and a path to buildings no mod can ship today.</p>
+    <p class="meta">Revision 5, 3 November 2026, against Factorio 2.1.24. Specification, writeup, benchmarks, cost model, reference mod and research: <a href="https://github.com/danbopes/composed-machines">github.com/danbopes/composed-machines</a>.</p>
+    <figure class="hero-fig">
+      <svg viewBox="0 0 780 262" role="img" aria-label="Parts declared in a prototype are reduced once at data load to one of four shapes; only shapes with something to tick enter a per-surface update bucket" style="color: var(--band-fg)">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g font-family="IBM Plex Sans, system-ui, sans-serif" font-size="12.5" fill="currentColor">
+          <text x="10" y="18" font-family="Titillium Web, system-ui, sans-serif" font-size="12" letter-spacing="1.2" fill="var(--accent)">PARTS, DECLARED IN THE PROTOTYPE</text>
+          <g stroke="currentColor" stroke-width="1" fill="none" opacity="0.9">
+            <rect x="10" y="30" width="110" height="26" rx="5"/><rect x="128" y="30" width="118" height="26" rx="5"/>
+            <rect x="10" y="64" width="110" height="26" rx="5"/><rect x="128" y="64" width="118" height="26" rx="5"/>
+            <rect x="10" y="98" width="110" height="26" rx="5"/><rect x="128" y="98" width="118" height="26" rx="5"/>
+            <rect x="10" y="132" width="110" height="26" rx="5"/><rect x="128" y="132" width="118" height="26" rx="5"/>
+          </g>
+          <text x="65" y="47" text-anchor="middle">inventories</text><text x="187" y="47" text-anchor="middle">energy source</text>
+          <text x="65" y="81" text-anchor="middle">fluid boxes</text><text x="187" y="81" text-anchor="middle">process</text>
+          <text x="65" y="115" text-anchor="middle">module slots</text><text x="187" y="115" text-anchor="middle">circuit connector</text>
+          <text x="65" y="149" text-anchor="middle">conditions</text><text x="187" y="149" text-anchor="middle">settings, events</text>
+          <g style="color: var(--accent)"><line x1="254" y1="94" x2="304" y2="94" stroke="currentColor" stroke-width="2" marker-end="url(#ah)"/></g>
+          <text x="279" y="82" text-anchor="middle" font-size="11" fill="var(--accent)">data load,</text>
+          <text x="279" y="114" text-anchor="middle" font-size="11" fill="var(--accent)">once</text>
+          <rect x="310" y="64" width="112" height="60" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="366" y="89" text-anchor="middle" font-weight="600">loader</text>
+          <text x="366" y="107" text-anchor="middle" font-size="11">picks one shape</text>
+          <g stroke="currentColor" stroke-width="1" fill="none">
+            <line x1="422" y1="94" x2="466" y2="40" marker-end="url(#ah)"/><line x1="422" y1="94" x2="466" y2="92" marker-end="url(#ah)"/>
+            <line x1="422" y1="94" x2="466" y2="144" marker-end="url(#ah)"/><line x1="422" y1="94" x2="466" y2="196" marker-end="url(#ah)"/>
+          </g>
+          <g stroke="currentColor" stroke-width="1" fill="none">
+            <rect x="472" y="20" width="140" height="40" rx="5"/><rect x="472" y="72" width="140" height="40" rx="5"/>
+            <rect x="472" y="124" width="140" height="40" rx="5"/><rect x="472" y="176" width="140" height="40" rx="5"/>
+          </g>
+          <text x="482" y="36" font-weight="600">S0 passive</text><text x="482" y="52" font-size="11">inventories only</text>
+          <text x="482" y="88" font-weight="600">S1 watcher</text><text x="482" y="104" font-size="11">burner, power gate</text>
+          <text x="482" y="140" font-weight="600">S2 timer</text><text x="482" y="156" font-size="11">process, no energy</text>
+          <text x="482" y="192" font-weight="600">S3 machine</text><text x="482" y="208" font-size="11">process + energy</text>
+          <line x1="612" y1="40" x2="690" y2="40" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="696" y="44" font-size="11">no list, 0 ns</text>
+          <g stroke="currentColor" stroke-width="1" fill="none">
+            <line x1="612" y1="92" x2="690" y2="120" marker-end="url(#ah)"/><line x1="612" y1="144" x2="690" y2="140" marker-end="url(#ah)"/><line x1="612" y1="196" x2="690" y2="160" marker-end="url(#ah)"/>
+          </g>
+          <rect x="694" y="110" width="60" height="58" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="724" y="135" text-anchor="middle" font-size="11">update</text><text x="724" y="150" text-anchor="middle" font-size="11">bucket</text>
+          <text x="724" y="184" text-anchor="middle" font-size="10.5" fill="var(--accent)">sleeps when idle</text>
+          <text x="10" y="248" font-size="11" opacity="0.85">One prototype, one entity, one class per shape. No Lua in the update; opt-in events after it.</text>
+        </g>
+      </svg>
+      <figcaption>The whole mechanism: parts are read once when the mod loads, the loader picks one of four compiled shapes, and only shapes with something to tick join the engine's per-surface update bucket, where they sleep like a furnace when idle.</figcaption>
+    </figure>
+
+  </div>
+</header>
+
+<main><div class="inner">
+
+<div class="verdict">
+  <div><div class="k">Viable?</div><div class="v ok">Yes</div><div class="s">Every mechanism v1 needs is one a vanilla type already uses, and the cost was measured in the real engine.</div></div>
+  <div><div class="k">Performance</div><div class="v">Native cost</div><div class="s">Costs what a furnace costs when working, nothing when idle. Modelled, then measured in the real engine.</div></div>
+  <div><div class="k">Cost to Wube</div><div class="v">2&ndash;4 months</div><div class="s">v1: one engine developer, 5&ndash;7 thousand lines, GUI the long pole. v2 is about the same size again.</div></div>
+  <div><div class="k">Demand</div><div class="v">11 years</div><div class="s">Asked for since 2015 in 86 forum threads, 176 verified GitHub findings across 100 repositories, and the 189 scripted buildings examined across 71 mods and the base game.</div></div>
+</div>
+
+
+<nav class="toc" aria-label="Contents"><a href="#the-problem-in-plain-words"><b>1</b>The problem, in plain words</a><a href="#what-modders-asked-for-and-what-wube-sai"><b>2</b>What modders asked for, and what Wube said</a><a href="#the-idea"><b>3</b>The idea</a><a href="#what-it-looks-like"><b>4</b>What it looks like to write one</a><a href="#is-it-viable-four-lines-of-evidence"><b>5</b>Is it viable? Four lines of evidence</a><a href="#what-it-unlocks"><b>6</b>What it unlocks</a><a href="#beyond-v1-the-parts-that-would-extend-th"><b>7</b>Beyond v1: the parts that would extend the game</a><a href="#what-it-costs-wube"><b>8</b>What it costs Wube</a><a href="#what-this-asks-of-wube"><b>9</b>What this asks of Wube</a><a href="#what-is-still-open"><b>10</b>What is still open</a><a href="#how-this-was-produced"><b>11</b>How this was produced</a></nav>
+<section id="the-problem-in-plain-words">
+  <h2><small>1</small>The problem, in plain words</h2>
+  <p>Factorio mods can only use the entity types that ship with the game: chest, furnace, assembler, inserter, and so on. Each type is a fixed C++ class with a fixed set of parts. A chest has one inventory and nothing else. A furnace has an input, an output, a fuel slot, modules and a progress bar, but it also insists on running real recipes.</p>
+  <p>When a modder wants something in between, say a <em>chest that burns fuel</em>, or a <em>machine whose crafting rules live in Lua</em>, there is no type for it. So they fake it. The pattern is the same across the whole modding scene: pick the nearest real type as a shell, stack invisible extra entities on top of it for the missing parts, and run a Lua loop every few ticks to make the pieces behave as one object.</p>
+  <h3>One building, two ways: the Pyanodons dig site</h3>
+  <p>The dig site is a creature-powered miner: feed it, give it a digosaurus, and it brings back ore from the patches around it. Read from the mod's own source (pyalienlife 3.1.8), this is what ships:</p>
+  <ul>
+    <li>An <strong>assembling machine</strong> with a fake recipe it is never allowed to run, kept disabled by script forever, used only for its power buffer, its four module slots (reused as creature slots), its output slot, its trash slot and its window.</li>
+    <li>A <strong>hidden, unselectable chest</strong> on the same tile that holds the food.</li>
+    <li>For every trip, a <strong>spawned unit</strong> told to attack an invisible target; the callback when it arrives is the timer.</li>
+    <li>A <strong>Lua loop every 61 ticks</strong> over every dig site that checks power, food, creatures and output, draws a floating warning icon when something is wrong, eats a food, spawns the next trip, and writes the production statistics by hand.</li>
+    <li>A <strong>mod-built pane</strong> docked beside the vanilla window with its own food slots, including a re-implemented cursor swap and reach check. 409 lines of control script in all.</li>
+  </ul>
+  <figure id="fig-dig">
+    <h4>The same building today and as one composed machine</h4>
+    <p class="sub">What the player and the engine can reach, and what only the mod's loop can reach.</p>
+    <svg viewBox="0 0 840 372" role="img" aria-label="Today the player's wire, window and inserters reach only the visible shell; the food, the trip and the status live in hidden entities that only a 61-tick Lua loop touches. As a composed machine everything is one entity the player reaches directly, and Lua gets one event.">
+      <defs><marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-family="IBM Plex Sans, system-ui, sans-serif" font-size="12" fill="currentColor">
+        <text x="10" y="16" font-family="Titillium Web, system-ui, sans-serif" font-size="12" letter-spacing="1.2" fill="var(--series-2)">TODAY: FIVE ENTITIES AND A LOOP</text>
+        <g stroke="currentColor" stroke-width="1.2" fill="none">
+          <rect x="10" y="34" width="130" height="26" rx="5"/><rect x="10" y="68" width="130" height="26" rx="5"/><rect x="10" y="102" width="130" height="26" rx="5"/>
+          <rect x="200" y="34" width="220" height="104" rx="6"/>
+          <rect x="440" y="34" width="140" height="50" rx="6" stroke-dasharray="5 3"/>
+          <rect x="440" y="94" width="140" height="44" rx="6" stroke-dasharray="5 3"/>
+        </g>
+        <rect x="620" y="34" width="210" height="104" rx="6" fill="none" stroke="var(--series-2)" stroke-width="1.5"/>
+        <text x="75" y="51" text-anchor="middle">player's wire</text>
+        <text x="75" y="85" text-anchor="middle">player's window</text>
+        <text x="75" y="119" text-anchor="middle">inserters, robots</text>
+        <text x="210" y="52" font-weight="600">assembling-machine shell</text>
+        <text x="210" y="68" font-size="11">fake recipe, always disabled by script</text>
+        <text x="210" y="83" font-size="11">power; 4 module slots = creature slots</text>
+        <text x="210" y="98" font-size="11">output slot, trash slot, vanilla window</text>
+        <text x="210" y="118" font-size="11" fill="var(--series-2)">inventories empty: a wire reads nothing</text>
+        <text x="450" y="52" font-weight="600">hidden chest: the food</text><text x="450" y="66" font-size="11">unselectable, so no wire,</text><text x="450" y="79" font-size="11">no window, no robots</text>
+        <text x="450" y="112" font-weight="600">unit + target</text><text x="450" y="127" font-size="11">one per trip; the timer</text>
+        <text x="630" y="52" font-weight="600">Lua, every 61 ticks, every site</text>
+        <text x="630" y="68" font-size="11">check power, food, creature, output</text>
+        <text x="630" y="82" font-size="11">draw a floating warning icon</text>
+        <text x="630" y="96" font-size="11">eat a food; spawn and command a unit</text>
+        <text x="630" y="110" font-size="11">on return: insert ore, write statistics</text>
+        <text x="630" y="124" font-size="11">on hover: write the status text</text>
+        <g stroke="currentColor" stroke-width="1" fill="none" marker-end="url(#ah5)">
+          <line x1="140" y1="47" x2="198" y2="47"/><line x1="140" y1="81" x2="198" y2="81"/><line x1="140" y1="115" x2="198" y2="115"/>
+          <line x1="620" y1="59" x2="582" y2="59"/><line x1="620" y1="116" x2="582" y2="116"/>
+          <polyline points="640,138 640,156 310,156 310,140"/>
+        </g>
+        <text x="169" y="42" text-anchor="middle" font-size="10" fill="var(--muted)">reads empty</text>
+        <text x="169" y="76" text-anchor="middle" font-size="10" fill="var(--muted)">+ mod pane</text>
+        <text x="169" y="110" text-anchor="middle" font-size="10" fill="var(--muted)">shell only</text>
+        <text x="601" y="54" text-anchor="middle" font-size="10" fill="var(--muted)">read, eat</text>
+        <text x="601" y="111" text-anchor="middle" font-size="10" fill="var(--muted)">spawn</text>
+        <text x="475" y="168" text-anchor="middle" font-size="10" fill="var(--muted)">enable or disable, status icon, statistics</text>
+
+        <text x="10" y="206" font-family="Titillium Web, system-ui, sans-serif" font-size="12" letter-spacing="1.2" fill="var(--ok)">AS A COMPOSED MACHINE: ONE ENTITY</text>
+        <g stroke="currentColor" stroke-width="1.2" fill="none">
+          <rect x="10" y="224" width="130" height="26" rx="5"/><rect x="10" y="258" width="130" height="26" rx="5"/><rect x="10" y="292" width="130" height="26" rx="5"/>
+        </g>
+        <rect x="200" y="224" width="380" height="104" rx="6" fill="none" stroke="var(--ok)" stroke-width="1.5"/>
+        <rect x="620" y="224" width="210" height="60" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        <text x="75" y="241" text-anchor="middle">player's wire</text>
+        <text x="75" y="275" text-anchor="middle">player's window</text>
+        <text x="75" y="309" text-anchor="middle">inserters, robots</text>
+        <text x="210" y="242" font-weight="600">composed-machine "dino-dig-site"</text>
+        <text x="210" y="259" font-size="11">burner: the food is the fuel (fuel bar, no-fuel status, fuel on the wire)</text>
+        <text x="210" y="273" font-size="11">4 module slots: the creatures</text>
+        <text x="210" y="287" font-size="11">inventories: ore (output), trash</text>
+        <text x="210" y="301" font-size="11">process: one trip; conditions give the status and the diode</text>
+        <text x="210" y="315" font-size="11">circuit: contents, fuel, working, cycle finished</text>
+        <text x="630" y="242" font-weight="600">control.lua: one handler</text>
+        <text x="630" y="258" font-size="11">cycle_finished: pick a patch in range,</text>
+        <text x="630" y="272" font-size="11">deplete it, insert the ore</text>
+        <g stroke="currentColor" stroke-width="1" fill="none" marker-end="url(#ah5)">
+          <line x1="140" y1="237" x2="198" y2="237"/><line x1="140" y1="271" x2="198" y2="271"/><line x1="140" y1="305" x2="198" y2="305"/>
+          <line x1="580" y1="246" x2="618" y2="246"/><line x1="618" y1="266" x2="582" y2="266"/>
+        </g>
+        <text x="169" y="232" text-anchor="middle" font-size="10" fill="var(--muted)">reads fuel</text>
+        <text x="169" y="266" text-anchor="middle" font-size="10" fill="var(--muted)">one window</text>
+        <text x="169" y="300" text-anchor="middle" font-size="10" fill="var(--muted)">slot rules</text>
+        <text x="599" y="241" text-anchor="middle" font-size="10" fill="var(--muted)">event</text>
+        <text x="599" y="279" text-anchor="middle" font-size="10" fill="var(--muted)">insert</text>
+        <text x="10" y="356" font-size="11" opacity="0.85">Top: the player reaches the shell, and the shell holds nothing that matters. Bottom: everything the player, the wire and the robots touch is the real thing.</text>
+      </g>
+    </svg>
+    <figcaption>Today the food, the trip and the "why isn't it working" live in entities the player cannot select, so a wire on the dig site reads an empty machine, the status is a floating icon redrawn by the loop, and the food goes in through a pane the mod draws itself. As a composed machine the food is fuel, the trip is the process, the creatures are modules, and Lua keeps the one decision that is the mod's: which patch, how much ore.</figcaption>
+  </figure>
+  <p>As a composed machine the whole rig is one prototype and one event handler:</p>
+<pre><code>{ type = "composed-machine", name = "dino-dig-site",
+  energy_source = { type = "burner", fuel_categories = {"dino-food"},
+                    fuel_inventory_size = 2 },        -- food value = fuel value
+  energy_usage = "100kW",
+  module_slots = 4, allowed_module_categories = {"digosaurus"},
+  inventories = { {name = "ore",   role = "output", size = 4},
+                  {name = "trash", role = "trash",  size = 1} },
+  process = { cycle_time = 20 },                      -- one trip
+  conditions = { {type = "module_slot_filled", count = 1, status = "no_modules"},
+                 {type = "inventory_below", inventory = "ore", max_count = 1000,
+                  status = "full_output"} },
+  circuit_connector = {...}, circuit_outputs = "contents",
+  events = { cycle_finished = true } }
+-- control.lua: on cycle_finished, pick a patch in range, deplete it, insert the ore.</code></pre>
+
+  <h3>What a real entity gets for free</h3>
+  <p>Every row below was checked against the 2.1.24 API reference, the lab's harness tests, or the shipped mods' own source. The gap is always the same gap: the part that does the work lives in a second entity the player cannot see, and Lua is the only bridge to it.</p>
+  <div class="legend"><span class="no">Not possible today</span><span class="part">Possible with per-tick Lua and extra hidden entities, with the defects listed</span><span class="yes">Engine-native in the composed type</span></div>
+  <div class="tablewrap"><table class="gaps">
+    <thead><tr><th>A real building can</th><th>Today's rig: a shell, hidden parts, a loop</th><th>Composed machine</th></tr></thead>
+    <tbody>
+      <tr><td>Be read on a wire: contents, fuel, working, cycle finished</td><td><span class="mark no">&#x2717;</span>The wire reaches the shell, and the shell reads its own inventories. The part that matters sits in a hidden entity nobody can select. A hidden combinator fed by a polling loop can forge a reading, one poll late. <span class="srcs">API: control behaviour per type; lab: "wires cannot read the food"</span></td><td class="ok"><span class="mark yes">&#x2713;</span><code>circuit_outputs</code>, <code>read_fuel</code>, working and finished signals, as a furnace has</td></tr>
+      <tr><td>Be switched by a circuit condition</td><td><span class="mark part">&#x25D0;</span>Only if the shell's type has the condition and the loop honours it at its next poll. A chest has no condition at all. <span class="srcs">API; pY checks it every 61 ticks</span></td><td class="ok"><span class="mark yes">&#x2713;</span>Engine-evaluated; a disabled machine sleeps</td></tr>
+      <tr><td>Open one window with every slot, the fuel bar, modules, the circuit and logistic panels</td><td><span class="mark no">&#x2717;</span>A mod can dock a pane beside the vanilla window or replace it (<code>LuaGui.relative</code>, <code>screen</code>); it cannot put a slot inside it. The hidden part's slots are re-implemented in the pane, cursor handling and reach check included. <span class="srcs">API; pY source</span></td><td class="ok"><span class="mark yes">&#x2713;</span>Composed from the crafter's own widgets</td></tr>
+      <tr><td>Show its status and diode from its parts, the tick they change</td><td><span class="mark no">&#x2717;</span><code>custom_status</code> is a string the script writes; the rig notices a change at its next poll; pY computes the text when you hover and draws floating icons in between. <span class="srcs">Lab: brazier 30 ticks late, hearth, dig site "status follows the parts only at the next pass"</span></td><td class="ok"><span class="mark yes">&#x2713;</span>no fuel, no power, no modules, output full, waiting for script: the same tick</td></tr>
+      <tr><td>Burn fuel as fuel: fuel bar, burnt result, no-fuel status, the inserter top-up rule, fuel requests on a ghost, fuel on the wire</td><td><span class="mark no">&#x2717;</span>Only types that own a burner get any of this. A chest has none. The dig site's food is items in a hidden chest, so none of it applies to food. <span class="srcs">API: 51 prototype types take an energy source; container is not one</span></td><td class="ok"><span class="mark yes">&#x2713;</span>A burner on any shape</td></tr>
+      <tr><td>Give inserters rules per slot: insert-only input, extract-only output, a small insertion limit</td><td><span class="mark part">&#x25D0;</span>A proxy container exposes its inventory both ways, so an inserter can steal the dig site's food; a proxy fuel door fills to a whole stack where a burner stops at a few. <span class="srcs">Lab: KNOWN-LIMIT, dig site; gap list, hearth</span></td><td class="ok"><span class="mark yes">&#x2713;</span><code>inserter_access</code> and <code>automated_insertion_limit</code> per inventory</td></tr>
+      <tr><td>Have robots fill its ghost: fuel, modules, ingredients requested on the blueprint</td><td><span class="mark part">&#x25D0;</span>Only for the shell's own slots. A ghost's food request is never fulfilled; Wube disabled item requests through proxies on purpose in 2.0.72. <span class="srcs">Lab test; forum p=685891</span></td><td class="ok"><span class="mark yes">&#x2713;</span>Every declared inventory takes requests like a crafter's</td></tr>
+      <tr><td>Survive blueprint, copy-paste, undo, upgrade planner and cloning with its settings and contents</td><td><span class="mark part">&#x25D0;</span>Every path recreates the hidden parts by hand. A 23,000-line library exists for this and "mostly" works; "there is no way to add deconstruction orders or mine commands to the undo stack" (cargo ships); a rotated blueprint turns a hidden tank the wrong way. <span class="srcs">Lab: KNOWN GAP; GitHub findings 48, 49; 0-things</span></td><td class="ok"><span class="mark yes">&#x2713;</span>One entity on the engine's normal paths</td></tr>
+      <tr><td>Turn, mirror, glow, smoke and keep its pipe and heat connections pointing the right way</td><td><span class="mark no">&#x2717;</span>Hidden parts have their own direction or none: a hidden heat interface keeps its side when the core turns; the flame, flicker and smoke belong to the hidden reactor, so a hearth looks cold while it burns. <span class="srcs">Lab: two KNOWN-LIMIT tests; gap list</span></td><td class="ok"><span class="mark yes">&#x2713;</span>One direction, one graphics set, the burner's own light and smoke</td></tr>
+      <tr><td>Sleep when idle and wake when an inserter arrives</td><td><span class="mark no">&#x2717;</span>A polled rig never sleeps. A recipe-less shell never leaves the update list: 18 ns per instance doing nothing. <span class="srcs">Measured, figure below</span></td><td class="ok"><span class="mark yes">&#x2713;</span>Off the list at no cost; the crafter's wake lists</td></tr>
+      <tr><td>Appear once in the power graph, the production statistics, Factoriopedia and the tooltip</td><td><span class="mark part">&#x25D0;</span>A hidden energy interface is its own consumer or producer in the graph (Krastorio 2, SeaBlock); statistics are written by hand; a live tooltip needs a polling loop. <span class="srcs">GitHub findings; pY source</span></td><td class="ok"><span class="mark yes">&#x2713;</span>One entry, filled by the engine</td></tr>
+      <tr><td>Tell the mod when something happened: inventory changed, power state flipped, fluid crossed a line, cycle finished with script-chosen consumption</td><td><span class="mark no">&#x2717;</span>None of these events exist (checked against all 229 events in 2.1.24). The crafted event exists for recipes only, since 2.1.12. So the mod polls, and a pulse shorter than the poll is lost. <span class="srcs">API; lab: tuned furnace KNOWN-LIMIT</span></td><td class="ok"><span class="mark yes">&#x2713;</span>Opt-in per prototype, queued and flushed after the update</td></tr>
+    </tbody>
+  </table></div>
+  <p>The research sweep behind this proposal catalogued <strong>41 shipped compound entities</strong> built this way across the local mod library and the nine Pyanodons mods, 86 forum threads asking for the missing parts, and a 23,000-line library (<code>0-things</code>) that exists only to keep hidden parts alive through blueprints, undo and cloning. The same complaint has been filed since 2015. Two of the smaller items, a food slot that accepts several foods and a status that says "no creature", are open bugs on the dig site itself that the mod's authors have called API limitations.</p>
+
+  <h3>And what the fake costs on top</h3>
+  <p>The table is the argument; UPS is the bill. The chart is measured in the real engine, on a Ryzen 9800X3D: each test entity built the way mods build it today, next to the plain native entity that holds the same parts. Where the rig polls, the gap is large; where it already runs on events (the dig site, the derrick) it is small, and that is the point: those buildings are not slow, they are crippled.</p>
+
+  <figure id="fig-tax">
+    <h4>What a Lua-composed entity costs per tick, versus its native parts</h4>
+    <p class="sub">Nanoseconds per instance per tick, 2000 instances each, 3600 ticks, pinned to 4 cores, 3 to 5 runs. Lower is better. Sorted by the ratio.</p>
+    <div class="legend"><span style="--c: var(--series-1)">Native parts (what the engine would charge)</span><span style="--c: var(--series-2)">Lua emulation of the proposed type (what mods pay today)</span><span style="--c: var(--series-3)">The workaround a shipped mod uses, where one exists</span></div>
+    <svg id="svg-tax" viewBox="0 0 720 420" role="img" aria-label="Paired horizontal bars: native versus Lua emulation cost per entity"></svg>
+    <figcaption>The gap is almost entirely Lua. Where the mod polls (cold box, converter, signal chest, hearth, brazier, tuned furnace) the <code>scriptUpdate</code> share is 60 to 470 ns of the total. Where it only reacts to engine events (dig site, derrick, creep collector, mass driver) <code>scriptUpdate</code> reads 1 to 7 ns, but the handler runs inside the entity update and is billed to the assembler column instead: the creep collector's harvest is 355 ns per instance there. Two ratios are below 1 (slag generator, mass driver) because the native twin does more work than the fake, not because the fake is cheap. The storehouse runs no Lua at all and is kept as a measurement of the shell itself: a recipe-less assembler that never leaves the update list. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/bench/RESULTS.md"><code>bench/RESULTS.md</code></a>, section (b).</figcaption>
+  </figure>
+</section>
+
+<section id="what-modders-asked-for-and-what-wube-sai">
+  <h2><small>2</small>What modders asked for, and what Wube said</h2>
+  <p>86 forum threads in the modding sections were catalogued, 65 of them read in full, including the first seven pages of the "Won't implement" subforum, plus 30 modding-help threads whose answer was "build a compound entity". The GitHub trackers of the mods themselves were swept separately.</p>
+  <div class="twocol">
+    <div><h4>The pattern on the forums</h4><ul>
+      <li>13 capability gaps, ranked by how often they recur; the composed machine closes ten.</li>
+      <li>Of 29 "Won't implement" verdicts on machine parts: 12 cite performance, 11 "it doesn't work that way", 3 maintenance, 5 give no reason.</li>
+      <li>25 threads describe a hidden-entity workaround in use; 13 say per-tick polling is the only option and call it expensive; 4 are features actually cut.</li>
+      <li>Two refusals were later reversed: an energy source on offshore pumps (refused 2020, shipped 2.0) and a per-entity runtime effect (hidden beacons until <code>local_effect</code> shipped in 2.1.13).</li>
+    </ul></div>
+    <div><h4>Features dropped or crippled</h4><ul>
+      <li><strong>Better Belt Balancer</strong> (2026) compiled balancers into hidden belts so "the steady state runs no Lua at all"; a 2.1 check broke it and the feature was removed.</li>
+      <li><strong>A heat-beacon mechanic</strong> (2024) rolled back after Rseding91 refused beacons with other energy kinds.</li>
+      <li><strong>RealisticReactors</strong> keeps 250 reactor prototypes and swaps the building to change its power.</li>
+      <li><strong>Electric locomotives, custom thrusters, a nutrient-powered roboport</strong>: not built; "there is no way".</li>
+    </ul></div>
+  </div>
+  <h3>Eleven years, in order</h3>
+  <ul class="tl">
+    <li class="ask"><span class="y">2014</span>A "powered up / powered down" event. <span class="who">no reply</span> Mods still iterate a list every tick to notice.</li>
+    <li class="no"><span class="y">2015</span>"Make the API less rigid": mix and match inventories, power, fluid. <span class="who">Rseding91: won't implement</span> "Object oriented C++ doesn't lend itself well to mix and match"; Klonan points at Kerbal Space Program's part modules.</li>
+    <li class="no"><span class="y">2016&ndash;2018</span>An entity component system, three times. <span class="who">Rseding91: never</span> "such a system will never exist and perform the same or better than the static model". Then, 2018: "I've yet to see anyone write up how such an entity would work."</li>
+    <li class="no"><span class="y">2018</span>A burner that burns constantly. <span class="who">won't implement</span> "they can't sleep and that's not going to happen."</li>
+    <li class="no"><span class="y">2020</span>Energy source on offshore pumps. <span class="who">won't implement</span> "no interest in making or even supporting modding of offshore pumps requiring power of any kind."</li>
+    <li class="no"><span class="y">2020</span>Mining recipes and an on-mined event. <span class="who">won't implement</span> "Firing events has a performance impact even if zero mods are listening."</li>
+    <li class="yes"><span class="y">2.0, 2024</span>Offshore pumps take an energy source. Ammo turrets too. <span class="who">shipped</span></li>
+    <li class="no"><span class="y">2024, 2026</span>Beacons with heat, fluid or burner energy. <span class="who">won't implement</span> "huge performance overhead every time the amount of energy they have changes."</li>
+    <li class="yes"><span class="y">2.1.12, Jul 2026</span><code>raise_on_crafted</code>: an opt-in, per-recipe event. Moshine and Muluna deleted polling loops for it. <span class="who">shipped</span></li>
+    <li class="yes"><span class="y">2.1.13, Aug 2026</span><code>local_effect</code>: a runtime per-entity effect. Replaces a hidden beacon per machine. <span class="who">shipped</span></li>
+    <li class="no"><span class="y">Jun 2026</span>A spoil-time multiplier on containers. <span class="who">boskid: won't implement</span> "Design decisions around spoilable items make features like this not possible."</li>
+    <li class="ask"><span class="y">Aug 2026</span>Better Belt Balancer removes its compiled-belt feature after a 2.1 check breaks it. <span class="who">"no priority because of complexity"</span> "if this API is ever implemented, I will restore the original functionality."</li>
+  </ul>
+  <p>The shape of it: each "no" is about a <em>vanilla</em> type growing a part, or an event firing globally. Each "yes" is an opt-in on one prototype. This proposal is built entirely from the second kind.</p>
+  <h3>The objections on record, and the answers</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Wube said</th><th>When</th><th>The proposal's answer</th></tr></thead>
+    <tbody>
+      <tr><td>A generic mix-and-match entity "simply will never happen"; it would mean "throwing out the entirety of the code around entities"</td><td>2015, 2019</td><td>That describes a runtime-generic system. This is one static class per shape, decided at load. The model's runtime variant costs 2.2&ndash;2.9x; the compiled-shape variant 1.00x. Klonan's own pointer in the 2015 thread, Kerbal Space Program's part modules, is the right picture: modules declared in the part's config, fixed when the part loads.</td></tr>
+      <tr><td>"Firing events has a performance impact even if zero mods are listening"</td><td>2020</td><td>True of a global event. These are per-prototype opt-in ids, the design Wube shipped as <code>raise_on_crafted</code> in 2.1.12: one integer compare per finished cycle when nobody opts in, nothing on prototypes that never declare the flag.</td></tr>
+      <tr><td>Entities that burn constantly "can't sleep and that's not going to happen"</td><td>2018</td><td>Agreed for vanilla types, which are untouched. A composed burner sleeps when its activity inventory is empty; an "always" burner is one modder's explicit choice on one prototype, costs what a boiler costs, and replaces a hidden reactor plus a Lua loop.</td></tr>
+      <tr><td>Beacons with other energy kinds: "huge performance overhead every time the amount of energy changes"</td><td>2024, 2026</td><td>Nothing in v1 touches beacons. Effect broadcast is a v3 item, listed as debated for exactly this reason.</td></tr>
+      <tr><td>A spoil multiplier on containers: "design decisions around spoilable items make features like this not possible"</td><td>2025, 2026</td><td>The one v1 part refused twice. The re-stamp is one write to a stack's spoil tick on the way in and one on the way out, never a per-tick walk; the cost is the hook on each transfer path into one declared inventory. It is kept because the fridge is the most-asked building, and isolated: cut it and nothing else changes.</td></tr>
+      <tr><td>Logistic mode on a proxy container: a proxy "does not own the inventory it borrows, which means it is not instantly notified of content changes"</td><td>2026</td><td>This argues <em>for</em> the design: a composed machine owns every inventory it declares, so the transfer hook that wakes inserters and raises events is its own.</td></tr>
+    </tbody>
+  </table></div>
+  <!--GH-->
+  <h3>And on GitHub, where the mods are maintained</h3>
+  <p>The mods' own issue trackers were swept with five independent search angles, and every candidate was re-opened and its quote matched verbatim before it counted. 176 findings across 100 repositories survived; 87 were rejected, 49 of them because Factorio 2.0 or 2.1 had since added the missing piece, which is its own kind of evidence: when Wube ships the engine part, the hack disappears.</p>
+  <div class="verdict">
+    <div><div class="k">Verified findings</div><div class="v">176</div><div class="s">100 repositories, 78 portal mods, 5.8 million downloads between them. Three quarters of the dated ones are from 2025&ndash;2026.</div></div>
+    <div><div class="k">Features abandoned</div><div class="v">30</div><div class="s">A building, mechanic or feature the author gave up on and said why.</div></div>
+    <div><div class="k">Hidden-entity hacks</div><div class="v">78</div><div class="s">Plus 32 polling loops and 13 "one prototype per value" patterns.</div></div>
+    <div><div class="k">Inside this design</div><div class="v">54%</div><div class="s">35 fixed by v1 as specified, 60 by a v2 part. The rest are other cores (65) or cross-surface links (11).</div></div>
+  </div>
+  <ul>
+    <li><strong>Pyanodons</strong> wanted a dig-site food slot that accepts several foods: "it seems to be an API limitation... Not going to fix this." A v1 inventory filter is a list.</li>
+    <li><strong>Corrundum</strong>'s ice box nudges every stack's spoil timer on a 53-tick loop: "Spoilage math wasn't working, and it was easier to increase slowly up to 50%." A v1 spoil modifier is two re-stamps, on the way in and on the way out, done by the engine.</li>
+    <li><strong>Rampant</strong> dropped a creep collector that should have spent energy per tile: "Factorio API doesn't allow to manage energy consumption directly." That is a v1 process with energy per cycle.</li>
+    <li><strong>Nullius</strong> marked its composite power buildings immovable because hidden children are not bound to the parent; <strong>LTN</strong> cannot upgrade a vanilla stop by blueprint because its compound parts collide with it.</li>
+    <li><strong>bplib</strong>, the blueprint bookkeeping library five mods share, measures a 3 ms per frame floor on drag-placing and calls it "unlikely to improve": settings carried by the engine (v1) remove the bookkeeping.</li>
+    <li><strong>Krastorio 2</strong> has a fusion reactor branch that "will require a new modding API feature to output steam at the correct temperature", open since 2023.</li>
+  </ul>
+  <p class="note">Two of the 176 findings were filed from the author's own GitHub account and are flagged in the source file, not cited here. Six come from visibly AI-assisted repositories and are weighted below long-maintained mods. The sweep also surfaced gaps the forum sweep had not ranked: multi-item filters, blueprint-carried settings (an entire library ecosystem exists for them), and placement rules. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/research/github-issues.md"><code>research/github-issues.md</code></a>.</p>
+  <!--/GH-->
+  <p class="note">Sources: <a href="https://github.com/danbopes/composed-machines/blob/main/research/RESEARCH.md"><code>research/RESEARCH.md</code></a> (13 gaps, 41 shipped hacks, developer positions verbatim), <a href="https://github.com/danbopes/composed-machines/blob/main/research/forum-dropped-features.md"><code>research/forum-dropped-features.md</code></a> (53 threads, 2026-11-02), <a href="https://github.com/danbopes/composed-machines/blob/main/research/github-issues.md"><code>research/github-issues.md</code></a>.</p>
+</section><section id="the-idea">
+  <h2><small>3</small>The idea</h2>
+  <p>Add one entity type whose parts are chosen <em>when the mod loads</em>, from a short list of parts the engine already owns: inventories, an energy source (burner, electric, fluid, heat), fluid boxes, a progress timer, module slots, a circuit connector. The mod writes a prototype like any other; the engine builds the object. No Lua runs inside the machine's tick. The ice box becomes this, with no control-stage code at all:</p>
+<pre><code>{
+  type = "composed-machine", name = "ice-box",
+  inventories = {{ name = "main", size = 16, role = "storage",
+                   spoil_multiplier = 8 }},   -- spoils 8x slower while fuelled
+  energy_source = { type = "burner", fuel_categories = {"dry-ice"} },
+  activity = "inventory_not_empty",           -- burns only while holding items
+}</code></pre>
+  <p>Three rules make it cheap:</p>
+  <ol>
+    <li><strong>Parts are fixed at load.</strong> The engine knows every machine's shape before the first tick, so there is nothing to look up while the game runs. The loader sorts prototypes into four shapes (passive store, watcher, timer, machine), and each shape is its own compiled class.</li>
+    <li><strong>It ticks only if a part needs to.</strong> A composed chest with no burner and no timer is never put on the update list, exactly like a normal chest. A machine that has finished its work goes to sleep until an inserter wakes it, exactly like a furnace.</li>
+    <li><strong>Lua gets events, not a heartbeat.</strong> A mod opts into "cycle finished", "inventory changed", "power state changed" and so on, per prototype. This copies a hook Wube already added in 2.1.12 for recipes. There is no per-tick callback.</li>
+  </ol>
+  <h3>Why this is not the thing Wube already said no to</h3>
+  <p>In 2018 a forum thread asked for a full entity component system: entities built from interchangeable behaviour components, assembled and dispatched at runtime. Rseding91 rejected it on performance grounds and has repeated the rejection since. He also left a door open:</p>
+  <p class="quote">"I'm not against that concept but I've yet to see anyone write up how such an entity would work. If someone did that it would go a long way towards me thinking about adding it to the game."<cite>Rseding91, Factorio forums, 23 June 2018, "Divorcing behavior from entities"</cite></p>
+  <p>The difference is when the composition happens. A runtime component system decides what an entity is on every tick. This proposal decides it once, at load, and compiles the result into ordinary static classes that sit in the engine's existing per-type update buckets. The engine already works this way for one part: a furnace's energy source kind (burner, electric, fluid, heat) is picked when the prototype loads and never again. This extends that from one part to eight.</p>
+</section>
+<section id="what-it-looks-like">
+  <h2><small>4</small>What it looks like to write one</h2>
+  <p>Eight designs taken from the forum and GitHub asks, written as the prototype a modder would ship. Each card says how the same building is faked today, what that fake cannot do however much Lua is spent on it, and, last, what the fake costs per tick next to the native parts. The lab mod builds every one as today's fake and the harness measures it (2000 instances, 3600 ticks, pinned to 4 cores).</p>
+  <div class="api">
+    <article><header><h4>Dig site</h4><span class="stage">v1 &middot; S3 &middot; Pyanodons</span></header>
+<pre><code>{ type = "composed-machine", name = "dino-dig-site",
+  energy_source = { type = "burner", fuel_categories = {"dino-food"},
+                    fuel_inventory_size = 2 },
+  energy_usage = "100kW",
+  module_slots = 4, allowed_module_categories = {"digosaurus"},
+  inventories = { {name = "ore",   role = "output", size = 4},
+                  {name = "trash", role = "trash",  size = 1} },
+  process = { cycle_time = 20 },
+  conditions = { {type = "module_slot_filled", count = 1, status = "no_modules"},
+                 {type = "inventory_below", inventory = "ore", max_count = 1000,
+                  status = "full_output"} },
+  circuit_connector = {...}, circuit_outputs = "contents",
+  events = { cycle_finished = true } }</code></pre>
+      <div class="today"><b>Today:</b> an assembler shell kept disabled forever, a hidden chest for food, a unit and an invisible target per trip, a loop every 61 ticks, and a mod-drawn pane for the food slots. 409 lines of control script. Since 2.1.12 a burner assembler running a real token recipe with <code>raise_on_crafted</code> could carry the food as fuel and raise the finish event; the creature slots, the yield rule and the status would still be faked around it.</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>put the food on a wire: the shell's slots are empty and the chest is unselectable;</li><li>treat food as fuel: no fuel bar, no "no fuel" status, no inserter top-up rule, no robot delivery to a ghost;</li><li>report its status when it changes: a floating icon redrawn every 61 ticks, a text computed when you hover;</li><li>show one window: the food slots live in a docked pane with their own cursor and reach code.</li></ul></div>
+      <div class="meas" data-meas="cl-dig-site"><b>Measured:</b> 60 ns per instance per tick as the fake, 47 ns as an electric furnace (1.3x); 1.4 ns of it is script. The handler already runs on events, so the gap is small. What the dig site lacks is the table in section 1, not nanoseconds.</div></article>
+    <article><header><h4>Cold box</h4><span class="stage">v1 &middot; S1 &middot; Corrundum</span></header>
+<pre><code>{ type = "composed-machine", name = "ice-box",
+  inventories = { {name = "cold", role = "storage", size = 16, with_bar = true,
+                   spoil_modifier = {multiplier = 8, requires_power = true}} },
+  energy_source = { type = "electric", usage_priority = "secondary-input" },
+  energy_usage = "10kW", activity = "inventory_not_empty", tick_interval = 60,
+  conditions = { {type = "powered", status = "no_power", diode = "red"} },
+  events = { power_state_changed = true } }</code></pre>
+      <div class="today"><b>Today:</b> a plain chest, and every 53 ticks a loop over every box on every planet pulling each stack's spoil timer back toward a target. A spoil multiplier on containers was refused twice: "Design decisions around spoilable items make features like this not possible."</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>be powered: a chest has no energy source, so "no power" is not a status it can show, and the hidden interface is a separate consumer in the power graph;</li><li>catch a stack leaving: taken out by hand or by an inserter between loops, it keeps its slowed timer (there is no container transfer event);</li><li>freeze smoothly: the timer moves in 53-tick steps, and the author settled for "increase slowly up to 50%".</li></ul></div>
+      <div class="meas" data-meas="cl-cold-box"><b>Measured:</b> 542 ns as the fake, 16 ns as an iron chest plus a 10 kW interface (35x). The largest gap in the set, and the most-asked building.</div></article>
+    <article><header><h4>Hearth</h4><span class="stage">v1 &middot; S3</span></header>
+<pre><code>{ type = "composed-machine", name = "hearth",
+  energy_source = { type = "burner", fuel_categories = {"chemical"} },
+  energy_usage = "90kW", activity = "always",
+  inventories = { {name="in",  role="input",  size=1, filters={"iron-ore"}},
+                  {name="out", role="output", size=1} },
+  process = { cycle_time = 3.2,
+    ingredients = {{type="item", name="iron-ore",   amount=1}},
+    products    = {{type="item", name="iron-plate", amount=1}} },
+  events = { power_state_changed = true } }</code></pre>
+      <div class="today"><b>Today:</b> an assembler with a fake recipe, a hidden reactor under it, and a loop every 20 ticks reading the reactor's temperature to zero the crafting progress when it goes cold. Asked in 2018 ("that's not going to happen") and 2023 ("the usual invisible entity contraption is the only solution").</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>stop when the fuel is taken out: it keeps crafting until the next poll (a deliberate test failure);</li><li>look lit: the flame, flicker and smoke belong to the hidden reactor, so the hearth looks cold while it burns;</li><li>take fuel like a burner: the fuel door is a proxy, which inserters fill to a whole stack.</li></ul></div>
+      <div class="meas" data-meas="cl-hearth"><b>Measured:</b> 234 ns as the fake, 101 ns as a stone furnace plus a bare reactor (2.3x); 54 ns as a plain stone furnace (4.3x). The 20-tick temperature check is 125 ns of the fake.</div></article>
+    <article><header><h4>Brazier</h4><span class="stage">v1 &middot; S1</span></header>
+<pre><code>{ type = "composed-machine", name = "brazier",
+  energy_source = { type = "burner", fuel_categories = {"chemical"},
+                    light_flicker = { color = {1, 0.6, 0.2} } },
+  energy_usage = "30kW", activity = "always",
+  events = { power_state_changed = true },
+  graphics_set = { working_visualisations = {{
+      light = { intensity = 0.8, size = 12 },
+      draw_in_states = {"working"} }} } }</code></pre>
+      <div class="today"><b>Today:</b> a hidden reactor, a proxy container for its fuel slot, and a loop every 30 ticks comparing remaining fuel to zero to raise the "out of fuel" event the forums asked for in 2014 and 2019. The Stone Age mod's torch: "turns out it's impossible to make a kind of lamp that doesn't run on electric power."</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>notice the flame going out when it goes out: up to 30 ticks late (a deliberate test failure);</li><li>be opened: the visible core has no window, so fuel goes in by inserter or script only;</li><li>light itself: the glow is a script-drawn object toggled by the poll, not the burner's light.</li></ul></div>
+      <div class="meas" data-meas="cl-brazier"><b>Measured:</b> 111 ns as the fake, 53 ns as a bare reactor plus a lamp (2.1x). The 30-tick fuel check is 61 ns of the fake.</div></article>
+    <article><header><h4>Creep collector</h4><span class="stage">v1 &middot; S3, script start</span></header>
+<pre><code>{ type = "composed-machine", name = "creep-collector",
+  energy_source = { type = "electric", usage_priority = "secondary-input",
+                    drain = "5kW" },
+  energy_usage = "400kW",
+  inventories = { {name = "spoils", role = "output", size = 4} },
+  process = { cycle_time = 2, start = "script", consume_at = "script" },
+  events = { cycle_finished = true },
+  conditions = { {type = "inventory_below", inventory = "spoils",
+                  max_count = 200, status = "full_output",
+                  diode = "yellow"} } }</code></pre>
+      <div class="today"><b>Today:</b> Rampant dropped this building: "Factorio API doesn't allow to manage energy consumption directly." The best fake is a disabled assembler with an empty recipe; the usual one is an energy interface polled every 60 ticks.</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>spend energy per unit of script-chosen work: a shell draws its recipe's power or nothing;</li><li>wait for the script: a recipe with no ingredients restarts the tick it ends, before Lua can gate it;</li><li>keep Lua out of the entity update: the harvest handler runs inside the crafted event.</li></ul></div>
+      <div class="meas" data-meas="cl-creep-collector"><b>Measured:</b> 390 ns as the fake, 49 ns as an electric furnace (7.9x). The Rampant-style energy interface polled every 60 ticks costs 194 ns, half the fake. The harvest handler's 355 ns land in the assembler column, not in <code>scriptUpdate</code> (7 ns).</div></article>
+    <article><header><h4>Tuned furnace</h4><span class="stage">v2 &middot; circuit input</span></header>
+<pre><code>{ type = "composed-machine", name = "tuned-furnace",
+  energy_source = { type = "electric", usage_priority = "secondary-input" },
+  energy_usage = "200kW",
+  process = { cycle_time = 3.2, ingredients = {...}, products = {...} },
+  effect_receiver = { speed_limits = {low = -0.8, high = 3} },
+  settings = { {name = "rate", type = "uint32", default = 10,
+                min = 1, max = 40} },
+  circuit_inputs = { enable_disable = true,
+                     settings = {{setting = "rate", signal = "signal-R"}} } }</code></pre>
+      <div class="today"><b>Today:</b> poll the wire every 30 ticks and write <code>local_effect</code> (2.1.13), or, before that, swap a hidden beacon's modules. RealisticReactors keeps 250 prototypes to change one number.</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>see a pulse: a signal shorter than the 30-tick poll is missed (a deliberate test failure);</li><li>stop polling: the loop runs forever, wired or not;</li><li>carry the setting: a value kept in script storage is not a blueprint parameter and does not survive undo by itself.</li></ul></div>
+      <div class="meas" data-meas="cl-tuned-furnace"><b>Measured:</b> 143 ns as the fake, 74 ns with <code>local_effect</code> written once and no poll (1.9x); the pre-2.1.13 hidden beacon with module swaps costs 98 ns (1.5x). The 30-tick wire poll is 67 ns of the fake.</div></article>
+    <article><header><h4>Slag generator</h4><span class="stage">v2 &middot; generation</span></header>
+<pre><code>{ type = "composed-machine", name = "slag-generator",
+  energy_source = { type = "burner", fuel_categories = {"chemical"} },
+  energy_usage = "1MW",
+  energy_output = { usage_priority = "secondary-output",
+                    output_flow_limit = "2MW" },
+  fluid_boxes = { {volume = 200, filter = "water", production_type = "input",
+                   pipe_connections = {...}} },
+  inventories = { {name = "slag", role = "output", size = 2} },
+  process = { cycle_time = 4,
+    ingredients = {{type="fluid", name="water", amount=40}},
+    products    = {{type="energy", amount="6MJ"},
+                   {type="item", name="stone", amount=1}} } }</code></pre>
+      <div class="today"><b>Today:</b> "no way to do this with the API except through complex compound entity solutions" (2024). The fake is a burner assembler plus a hidden energy interface that a handler tops up on every finished craft.</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>make energy a product: it arrives as a lump after each craft, not over the cycle;</li><li>block on a full buffer: the next cycle's water is already taken when the block lands (a deliberate test failure);</li><li>be one thing in the power graph: the hidden interface is its own producer and the shell its own consumer.</li></ul></div>
+      <div class="meas" data-meas="cl-slag-generator"><b>Measured:</b> 125 ns as the fake, 158 ns as a steam engine plus a stone furnace (0.8x). The twin's steam engine does more work than the hidden energy interface; the fake's own cost over an empty world is 105 ns, 3 ns of it script.</div></article>
+    <article><header><h4>Waste-heat smelter</h4><span class="stage">v2 &middot; heat output</span></header>
+<pre><code>{ type = "composed-machine", name = "waste-heat-smelter",
+  energy_source = { type = "electric" }, energy_usage = "180kW",
+  heat_buffer = { max_temperature = 500, specific_heat = "1MJ",
+                  max_transfer = "1GW",
+                  connections = {{position = {0, 1},
+                                  direction = defines.direction.south}} },
+  process = { cycle_time = 3.2,
+    ingredients = {{type="item", name="copper-ore",   amount=1}},
+    products    = {{type="item", name="copper-plate", amount=1},
+                   {type="heat", amount="400kJ"}} } }</code></pre>
+      <div class="today"><b>Today:</b> "fake it by having multiple entities" (2025): an assembler, a hidden heat interface, and a handler that bumps its temperature on every finished craft. Muluna's heat assemblers add a 30-tick wire-retry loop on top.</div>
+      <div class="cannot"><b>The rig cannot:</b><ul><li>make heat a product: the handler adds it after each craft;</li><li>turn: the hidden heat interface has no direction, so the connection stays put when the machine rotates (two deliberate test failures);</li><li>cool: the hidden part never loses heat, so the test falls back to energy conservation.</li></ul></div>
+      <div class="meas" data-meas="cl-waste-heat-smelter"><b>Measured:</b> 122 ns as the fake, 113 ns as an electric furnace plus a resting heat interface (1.1x); 87 ns as an always-hot nuclear reactor (1.4x), 46 ns as a plain electric furnace (2.6x). The temperature bump per craft is 3 ns of script plus about 35 ns in the assembler column.</div></article>
+  </div>
+  <p class="note">Full specifications, the fake each one is built from, the assertions the harness makes, and the native comparison cells: <a href="https://github.com/danbopes/composed-machines/blob/main/docs/ENTITIES.md"><code>docs/ENTITIES.md</code></a> and <a href="https://github.com/danbopes/composed-machines/blob/main/docs/TEST-ENTITIES-2.md"><code>docs/TEST-ENTITIES-2.md</code></a>. The other eight lab entities (a fluid-holding chest, a signal chest, a fuelled chest, a timed converter, a seep derrick, a powered signal endpoint, a mass driver and a rotating storehouse) test the remaining parts and appear in the chart in section 1.</p>
+</section>
+
+
+<section id="is-it-viable-four-lines-of-evidence">
+  <h2><small>5</small>Is it viable? Four lines of evidence</h2>
+
+  <h3>The engine already does the hard parts</h3>
+  <p>Every mechanism the design relies on is one the engine already uses for a vanilla type. None of it is guessed from code: it is what the public API, the changelogs, Wube's own descriptions of the update loop and the game's per-class benchmark timers show.</p>
+  <ul>
+    <li>Being updatable is opt-in per type, and the API says so directly (<code>LuaEntity.is_updatable</code>, since 2.0.26): chests, proxy containers and linked containers report false and cost nothing per tick. Measured: 20,000 sleeping furnaces cost the same as 20,000 chests, which cost the same as an empty map.</li>
+    <li>Active entities are updated in per-type batches, which Rseding91 described in 2016 and which the benchmark's per-class timers expose column by column. A new type is one more column.</li>
+    <li>The engine already has an "update me every N ticks" mode: beacons and roboports "do not update every tick" (Rseding91, 2024). The design's slow watcher shapes ride on it.</li>
+    <li>Sleep and wake are constant-time on intrusive lists, in Rseding91's own description (forum 2016, Reddit 2023). The crafting machine the proposal copies from already sleeps on an empty input and wakes when an inserter drops one.</li>
+    <li>An energy source's kind is fixed at load by the prototype's <code>type</code> field and never changes, which is why a furnace can be burner or electric without a runtime check; and a stack's spoil tick is a writable field (<code>LuaItemStack.spoil_tick</code>), so a re-stamp on the way in and out is one write per stack, not a per-tick walk.</li>
+  </ul>
+
+  <h3>A model of the update loop agrees with Wube, and with the proposal</h3>
+  <p>To separate "composition" from "runtime composition", a C++ model runs a Factorio-shaped tick (inserters moving real item stacks, machines drawing from shared power networks, burners eating fuel) four ways on identical work, with identical final checksums.</p>
+  <figure id="fig-model">
+    <h4>Cost relative to today's static classes (1.0 = the same)</h4>
+    <p class="sub">C++ model, g++ 13, 600 measured ticks, median of 3 repeats. Entity counts of 10 thousand, 100 thousand and 1 million.</p>
+    <div class="legend"><span style="--c: var(--series-1)">Composed, parts as pointers checked each tick</span><span style="--c: var(--series-3)">Composed, shape compiled per template (the proposal)</span><span style="--c: var(--series-2)">Runtime component system (rejected in 2018)</span></div>
+    <svg id="svg-model" viewBox="0 0 720 300" role="img" aria-label="Grouped bars: three architectures relative to static at three entity counts"></svg>
+    <figcaption>The runtime component system costs 2.2 to 2.9 times as much and gets worse as the world grows, which is Rseding's objection in numbers. A composed class that keeps its shape in the object layout costs 5 to 10 percent more. Compile the shape out and the difference disappears: 1.00 within noise under both g++ and clang. Object sizes match too: the templated chest is 16 bytes and the machine 64, identical to the static classes. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/model/RESULTS.md"><code>model/RESULTS.md</code></a>.</figcaption>
+  </figure>
+
+  <p>The model was then re-run with the v2 parts that tick (an electric or heat output pushed on cycle finish, a circuit enable that puts the machine to sleep, a trigger on finish), with every update list shuffled so no layout benefits from a repeating pattern. Keeping the four v1 shapes and testing the energy output behind one pointer only at the push ran at <strong>0.95 to 1.02</strong> of hand-written classes. Multiplying into six machine shapes with no test at all ran at 0.96 to 1.01, so it buys nothing. The pointer-checked single class (variant B) did fall behind again at a million entities, 1.08 to 1.12, because its chest grows to 112 bytes. One trap turned up that is worth telling Wube: if a template gives each shape its own copy of the accessors inserters call, the inserters' calls go polymorphic and the tick slows by 12 to 35 percent; those accessors belong in a core class every shape shares. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/model/RESULTS-v2.md"><code>model/RESULTS-v2.md</code></a>.</p>
+  <h3>The real engine confirms the shape of the cost</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Native entity, 2000 and 20,000 instances</th><th class="n">ns per instance per tick (2k)</th><th class="n">(20k)</th><th>Reads as</th></tr></thead>
+    <tbody>
+      <tr><td>Wooden chest</td><td class="n">2</td><td class="n">0.5</td><td>passive: never updated</td></tr>
+      <tr><td>Electric furnace, idle</td><td class="n">0</td><td class="n">2</td><td>asleep: off the list</td></tr>
+      <tr><td>Electric furnace, working</td><td class="n">47</td><td class="n">64</td><td>the S3 "machine" shape</td></tr>
+      <tr><td>Stone furnace, working</td><td class="n">55</td><td class="n">61</td><td>same, burner kind</td></tr>
+      <tr><td>Assembler 2, working</td><td class="n">100</td><td class="n">140</td><td>same, with recipe logic</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Each row includes the two inserters and two infinity chests that feed the cell, which is why "working" numbers exceed the bare per-class figures (about 30 ns for the furnace itself). Measured with the game's own <code>--benchmark-verbose</code> per-class timers. On mulark's public benchmark maps the same timers show one assembler at about 5.7 µs in a 400-machine direct-insertion chain, so cache behaviour, not instruction count, dominates at scale. That is exactly the regime where keeping the shape out of the object layout matters.</p>
+
+
+  <h3>What a real Pyanodons base spends its tick on</h3>
+  <p>Three of the author's own Pyanodons saves, each run with its own mod list (73 to 76 mods), 3600 ticks, three runs, pinned to four cores. The question is not how fast the base is but where the time goes: the engine's entity update against the Lua side, which is every mod's script time plus the garbage it leaves behind.</p>
+  <figure id="fig-py">
+    <h4>Share of one update, three Pyanodons saves</h4>
+    <p class="sub">Milliseconds per update, best of three runs. Spread between runs 1.3 to 3.8 percent.</p>
+    <div class="legend"><span style="--c: var(--series-1)">Entity update (engine)</span><span style="--c: var(--series-2)">Lua: script update + garbage collection (all mods)</span><span style="--c: var(--muted)">Everything else (trains, belts, fluids, circuits, power)</span></div>
+    <svg id="svg-py" viewBox="0 0 720 200" role="img" aria-label="Stacked horizontal bars: entity update, Lua, and the rest of the tick for three saves"></svg>
+    <figcaption>In these bases the Lua side is already as large as the whole entity update: 29, 31 and 41 percent of the tick, with the garbage collector alone at 0.6 to 0.8 ms. That share belongs to every mod in the save, not only to faked machines, and the per-mod split was not measured. What it shows is the ceiling the proposal works against: every building family moved into the engine comes out of the orange bar and lands in the blue one at native cost. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/bench/RESULTS.md"><code>bench/RESULTS.md</code></a>, section (d).</figcaption>
+  </figure>
+
+  <h3>A working reference mod, with the gaps written down</h3>
+  <p>To make the proposal testable before it exists, <code>component-lab</code> is a Lua library that takes the proposed prototype format and builds the nearest fake out of today's types and hidden parts, plus sixteen test entities: the eight of section 4 and eight more that cover the remaining parts (a fluid-holding chest, a signal chest, a fuelled chest, a timed converter, a seep derrick, a powered signal endpoint, a mass driver and a rotating storehouse). It runs through the harness on a real headless server.</p>
+  <div class="twocol">
+    <div><h4>Result</h4><ul><li>299 tests, 288 pass, 11 fail on purpose.</li><li>Build, mine, clone, blueprint and destroy round-trips for every entity.</li><li>Two adversarial reviews found four serious bugs: two in the library's lifecycle, a storehouse turn that ignored water and ghosts, and a fuel door inserters could drain. All fixed with regression tests.</li></ul></div>
+    <div><h4>The deliberate failures</h4><ul><li>A wire on the dig site cannot read its food, and its status follows the parts only at the next poll.</li><li>A proxy container exposes its inventory both ways, so an inserter can steal food out of the dig site; a ghost's food request is never filled.</li><li>A polled watcher sees a transition one interval late (brazier, hearth); a pulse shorter than the poll is lost (tuned furnace).</li><li>An assembler cannot consume at the end of a cycle, or block on a full energy buffer.</li><li>A chest ghost carries no rotation, and a hidden heat interface keeps its own side when the core turns.</li></ul></div>
+  </div>
+  <p>Those failures are the point. They are not bugs in the mod; they are engine features the fake cannot have, and the native type would have them for free. They are the harness-checked half of the table in section 1. The mod's own gap list runs longer: no engine wake-ups (so watchers poll), no coalesced inventory or status events, no sleeping at crafter cost, no per-transfer spoil stamping, no honest status without render objects.</p>
+</section>
+
+<section id="what-it-unlocks">
+  <h2><small>6</small>What it unlocks</h2>
+  <p>Things modders have asked for and cannot build today, each with what they do instead.</p>
+  <div class="unlock">
+    <div><h4>A chest that burns fuel</h4><p>Heated storage, incubators, a powered strongbox. One inventory plus a burner.</p><p class="today">Today: a chest with an invisible reactor on top and a loop to sync them. 3x the UPS.</p></div>
+    <div><h4>A freezer</h4><p>Items spoil slower while fuelled; the engine re-stamps spoil timers on the way in and out.</p><p class="today">Today: rewrite every stack every 53 ticks. 35x the UPS, and the timer drifts.</p></div>
+    <div><h4>A machine with rules in Lua</h4><p>Inventories, fuel, modules and a real progress bar, but the mod decides when a cycle starts and what it consumes. Requested in 2024, unanswered.</p><p class="today">Today: a disabled assembler with a fake recipe. 8x the UPS.</p></div>
+    <div><h4>A chest that holds fluid</h4><p>Tanks with item slots, loaders that need lubricant, bio-fluid stations.</p><p class="today">Today: a chest and a hidden tank that forget each other on rotation.</p></div>
+    <div><h4>Signals from anything</h4><p>Any composed entity can publish circuit signals the mod writes.</p><p class="today">Today: a hidden constant combinator wired by script. Five mods do this.</p></div>
+    <div><h4>Honest status</h4><p>The status line and diode follow the parts: no fuel, no power, waiting for script, output full.</p><p class="today">Today: polled custom_status and floating error sprites.</p></div>
+    <div><h4>Blueprints, undo and cloning that just work</h4><p>One entity on the engine's normal paths, so copy, paste, undo and base cloning carry everything.</p><p class="today">Today: 23,000 lines of lifecycle glue, and it "mostly" works.</p></div>
+    <div><h4>Dig sites, derricks, farms without hidden parts</h4><p>A progress timer, a few named inventories, module slots and two events replace the whole dinosaur rig.</p><p class="today">Today: five entities and a loop per building. pY 134 has 14 dig sites, 29 derricks, 5100 farms and 2176 hidden beacons.</p></div>
+  </div>
+  <p>Measured against the ranked gap list from the research sweep, the type closes ten of thirteen gaps (about 120 of 134 counted requests and shipped hacks). It does not cover moving units, heat output or script-scaled map generation, and it does not touch belts, trains, roboports or the crafting of real recipes, which keep their existing types.</p>
+
+  <h3>How much of the modding scene it actually covers</h3>
+  <p>A second sweep went building by building instead of request by request: every scripted or type-abused building in the local mod library, all of Pyanodons, the base game's own types and scenario scripts, and the popular mods that aren't installed here (Krastorio 2, Space Exploration, Ultracube, Maraxsis, Cerys, Exotic Industries, Factorissimo and others, read from public sources). 189 buildings across 71 mods. Each got a verdict: converts fully, converts partly, or no.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Source</th><th class="n">Fully</th><th class="n">Partly</th><th class="n">No</th><th class="n">Buildings</th></tr></thead>
+    <tbody>
+      <tr><td>Local mod library, excluding Pyanodons</td><td class="n">7</td><td class="n">11</td><td class="n">43</td><td class="n">61</td></tr>
+      <tr><td>Pyanodons</td><td class="n">4</td><td class="n">4</td><td class="n">20</td><td class="n">28</td></tr>
+      <tr><td>Popular external mods</td><td class="n">5</td><td class="n">11</td><td class="n">32</td><td class="n">48</td></tr>
+      <tr><td>Base game entity types and scenario scripts</td><td class="n">6</td><td class="n">10</td><td class="n">36</td><td class="n">52</td></tr>
+      <tr><td><strong>All</strong></td><td class="n"><strong>22</strong></td><td class="n"><strong>36</strong></td><td class="n"><strong>131</strong></td><td class="n"><strong>189</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>So v1 reaches about a third of everything modders have ever scripted into a building, and that third is where the worst hacks live. The "no" column is not a weakness of the design so much as a map of what was deliberately left out. Counting what blocks each of the 167 non-full rows:</p>
+  <ul>
+    <li><strong>It needs a different core</strong> (an inserter, a roboport, a train stop, a rocket silo, a moving unit, a mining drill): 29 plus 22 plus 16 plus 7 rows. These are other entity types, not parts, and the proposal never claimed them.</li>
+    <li><strong>It generates power or heat</strong>: 27 and 10 rows. Pyanodons' solar towers, tidal and wind power, Cerys' reactors and heaters. A "generation part" is the single most valuable v2 addition: 16 buildings convert fully the moment it exists.</li>
+    <li><strong>It chooses recipes</strong>: 17 rows, mostly Pyanodons farms and vat brains, which stay real crafters by design.</li>
+    <li><strong>It reads circuit input or broadcasts an effect</strong>: 13 and 6 rows. Both are plausible v2 parts.</li>
+  </ul>
+  <p>Two of the largest families in the pY saves are blocked by something simpler than a new type. The 5,100 farms want a <code>require_module</code> flag on ordinary crafting machines, a one-field request. The 2,176 hidden TURD beacons wanted a runtime per-entity effect, and Wube shipped exactly that in 2.1.13 as <code>local_effect</code>: pY can retire them today, which is also the precedent this proposal leans on, since the same field is the composed machine's per-entity speed and energy lever.</p>
+  <p class="note">The sweep also produced 15 small spec amendments (a wildcard fluid ingredient for void sinks, status events on passive shapes, a continuous process mode for boiler-like machines, surface-dependent products, placement on resource patches) and the ten most persuasive conversions for the writeup, led by the dig site, the bio-fluid tanks, aai-signal-transmission's endpoints (590 thousand downloads) and the equipment gantry (298 thousand). Source: <a href="https://github.com/danbopes/composed-machines/blob/main/research/CONVERSION-CANDIDATES.md"><code>research/CONVERSION-CANDIDATES.md</code></a>.</p>
+</section>
+
+<section id="beyond-v1-the-parts-that-would-extend-th">
+  <h2><small>7</small>Beyond v1: the parts that would extend the game</h2>
+  <p>v1 is deliberately narrow. The sweep's "no" column says where the next parts are, and each candidate was put through a hostile review by a "Wube engineer" persona that checked every claimed mechanism against the engine's public behaviour and documentation and threw out what was vanilla already or had no existing mechanism behind it (seven showcase buildings and three parts went that way). What survived, ranked by the buildings each part lifts on its own:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Part</th><th>What it wraps in the engine</th><th class="n">Buildings lifted</th><th>Stage</th></tr></thead>
+    <tbody>
+      <tr><td>Triggers on cycle start and finish</td><td>The projectile, smoke and area-effect machinery every weapon uses</td><td class="n">1 + every "machine that shoots"</td><td>v1.1</td></tr>
+      <tr><td>Typed settings (item, fluid, signal, quality, offset) as blueprint parameters</td><td>The constant combinator's signal storage; the blueprint-parameter collector</td><td class="n">2</td><td>v1.1</td></tr>
+      <tr><td>Wildcard ingredient ("consume anything")</td><td>An unfiltered fluid box; about 100 new lines for items</td><td class="n">3</td><td>v1.1</td></tr>
+      <tr><td>Small fields: pollution per cycle, light, destroy on empty, fluids in the circuit read</td><td>Existing fields on cargo pods, lamps and tanks</td><td class="n">3</td><td>v1.1</td></tr>
+      <tr><td>Electric generation</td><td>The electric interface's production half; the burner generator's two-source shape</td><td class="n">16</td><td>v2</td></tr>
+      <tr><td>Heat output</td><td>The reactor's heat buffer on an owner that pushes into the heat pass</td><td class="n">7</td><td>v2</td></tr>
+      <tr><td>Circuit input: enable condition, signal-bound settings</td><td>The enable/disable behaviour every pump and inserter has</td><td class="n">5</td><td>v2</td></tr>
+      <tr><td>Products from the tile or planet; placement on resource patches</td><td>The offshore pump's tile read; the drill's placement rule</td><td class="n">5</td><td>v2</td></tr>
+      <tr><td>Logistic role per inventory</td><td>The logistic-member interface ten non-chest types already implement</td><td class="n">new buildings</td><td>v3, debated</td></tr>
+      <tr><td>Effect broadcast</td><td>A change in the receiver code five crafter types share</td><td class="n">5</td><td>v3, debated</td></tr>
+    </tbody>
+  </table></div>
+  <figure id="fig-cov">
+    <h4>Scripted buildings that convert fully, out of 189</h4>
+    <p class="sub">Counted from the building-by-building sweep; "fully" means every hidden part and every tick loop goes.</p>
+    <svg id="svg-cov" viewBox="0 0 720 150" role="img" aria-label="Three horizontal bars: full conversions after v1, v2 and v3"></svg>
+    <figcaption>The rest needs a different core (inserters, roboports, train stops, silos, units, drills: 74 buildings), recipe selection (17) or a cross-entity link (12), none of which this type claims. Source: <a href="https://github.com/danbopes/composed-machines/blob/main/docs/V2-PARTS.md"><code>docs/V2-PARTS.md</code></a>, section 5.</figcaption>
+  </figure>
+  <h3>Buildings no mod can ship today</h3>
+  <p>Each is one prototype and at most one event handler. The thread where a modder asked is given where there is one.</p>
+  <div class="unlock">
+    <div><h4>Aging cellar</h4><p>Items spoil <em>faster</em> in a cellar, and what they spoil into is the aged product.</p><p class="today">v1. Per-container spoil rate; the part Wube has refused for plain containers.</p></div>
+    <div><h4>A hearth that always burns</h4><p>A crafter that eats fuel whether or not it works.</p><p class="today">v1. Today: a hidden reactor under every machine and a tick loop (2018, 2023 threads).</p></div>
+    <div><h4>Powered-state alarm block</h4><p>An event when the power or fuel state flips.</p><p class="today">v1. Asked since 2014; LTN asked again in 2019: "forcing mods to do bad performing polling".</p></div>
+    <div><h4>Slag generator</h4><p>Power from a fluid, with a solid byproduct every cycle.</p><p class="today">v2. 2024 thread: no way "except through complex compound entity solutions".</p></div>
+    <div><h4>Blast furnace with heat recovery</h4><p>A smelter that heats a pipe network while it works.</p><p class="today">v2. 2025 thread: "fake it by having multiple entities".</p></div>
+    <div><h4>Adjustable reactor</h4><p>Heat output set by a signal, not by swapping prototypes.</p><p class="today">v2. RealisticReactors keeps 250 prototypes for this.</p></div>
+    <div><h4>Kiln</h4><p>Burns anything you feed it, pollutes per cycle, belches smoke.</p><p class="today">v1.1. Today: one recipe per input (Flare Stack, Angel's).</p></div>
+    <div><h4>Solar still, hot-rock vent</h4><p>Output that depends on the planet; a vent placed on a resource without a drill.</p><p class="today">v2. Needs tile and surface products and placement on resources.</p></div>
+    <div><h4>Requester that cooks</h4><p>One inventory is a logistic requester; the machine cooks what the robots bring.</p><p class="today">v3. Needs a logistic role on a non-chest.</p></div>
+  </div>
+  <p class="note">Dropped by the review, because vanilla 2.1 already builds them: a tide mill (solar panel with a coefficient property), a thermal battery (a heat pipe with a large buffer), a biomass boiler, a geothermal tap (drill plus generator), a quality tumbler, a composter. Not buildable as specified and removed: a capacitor bank (two electric sources on one entity) and a plankton net (tile products are fluids). The full list is in <a href="https://github.com/danbopes/composed-machines/blob/main/docs/V2-PARTS.md"><code>docs/V2-PARTS.md</code></a>; the review's conclusions are folded into it.</p>
+</section><section id="what-it-costs-wube">
+  <h2><small>8</small>What it costs Wube</h2>
+  <p>The build plan is a copy-and-cut of the crafting machine class with the recipe half removed, plus the container's inventory handling. The maintenance surface is therefore a subset of code Wube already maintains, minus the part that changes most.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Unit</th><th class="n">Lines of C++ (est.)</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Prototype and validation</td><td class="n">600&ndash;900</td><td>Fifteen data-stage rules; four shapes decided at load</td></tr>
+      <tr><td>The four shape classes</td><td class="n">1500&ndash;2200</td><td>Templates over the crafting machine's existing steps</td></tr>
+      <tr><td>Control behaviour (circuit)</td><td class="n">300&ndash;500</td><td>Reuses the logistic section code</td></tr>
+      <tr><td>Events and flush point</td><td class="n">250&ndash;400</td><td>New: queued, coalesced, dispatched after the entity phase</td></tr>
+      <tr><td>Lua surface</td><td class="n">400&ndash;600</td><td>Mostly existing accessors</td></tr>
+      <tr><td>GUI and tooltips</td><td class="n">1200&ndash;2000</td><td>Composed from existing widgets; the long pole</td></tr>
+      <tr><td>Save, migration, blueprint</td><td class="n">under 1000</td><td>Part mask plus each part's own serialiser</td></tr>
+    </tbody>
+  </table></div>
+  <p>Total for v1: about 5 to 7 thousand lines, comparable to one Space Age entity type, two to four months for one engine developer who knows the crafting machine. The v1.1 parts add 550 to 950 lines and the v2 parts 1.1 to 1.7 thousand before their GUI (a power and temperature readout, a circuit-condition panel, signal choosers), which is of the same order as v1's; call v2 another two to three months. Ranked risks: the GUI; inserter rules across several input inventories (where the furnace's special cases live); item requests on ghosts of a non-crafter; the spoil hooks on every transfer path; and the maintenance commitment Rseding named in 2020 ("another developer signs up for maintaining a new entity type").</p>
+  <p>What is <em>not</em> being asked for: no runtime components, no per-tick Lua hook, no changes to belts or vanilla types, no unbounded shape list. Each of those is a thing Wube has refused before, for reasons this design accepts.</p>
+</section>
+
+<section id="what-this-asks-of-wube">
+  <h2><small>9</small>What this asks of Wube</h2>
+  <ol>
+    <li><strong>Read the writeup.</strong> It is the document Rseding91 asked for in 2018 (<a href="https://github.com/danbopes/composed-machines/blob/main/docs/WRITEUP.md"><code>docs/WRITEUP.md</code></a>): about 7,500 words, with every engine fact it relies on listed with its verification state, and a 12,000-word specification behind it (<a href="https://github.com/danbopes/composed-machines/blob/main/docs/SPEC.md"><code>docs/SPEC.md</code></a>). It answers the six objections on record one by one.</li>
+    <li><strong>Rule on three design calls</strong> the spec flags: whether Lua may make an item fresher than new (the engine's internal path can, the Lua path cannot), how slow watchers are phased on the N-tick ring, and whether a burner refuels before or after the draw.</li>
+    <li><strong>Say which of the open engine details are wrong.</strong> Eight engine details the proposal could not verify from outside are listed with fallbacks; none changes the design, but one sentence each from someone who can read the source would retire them.</li>
+    <li><strong>If the shape rule holds up, pilot v1 behind an experimental flag.</strong> The reference mod and its 299-test harness suite are a ready regression gate; the benchmark tooling measures any build against the Lua emulation on the same saves.</li>
+    <li><strong>Independently of all of the above</strong>, two one-field changes stand on their own: <code>require_module</code> on crafting machines (5,100 pY farms) and the quality filter on lab input (corrundum).</li>
+  </ol>
+  <p>What is <em>not</em> being asked for: no runtime components, no per-tick Lua hook, no changes to belts or vanilla types, no unbounded shape list, no new energy kinds. Each of those is a thing Wube has refused before, for reasons this design accepts.</p>
+</section><section id="what-is-still-open">
+  <h2><small>10</small>What is still open</h2>
+  <ul>
+    <li><strong>Per-mod attribution in the pY saves.</strong> The runs show the Lua share of the tick but not which mod owns it; that needs the graphical client's time-usage panel and was not done.</li>
+    <li><strong>A few engine details</strong> remain unverified (which object owns the N-tick ring, and behaviour above 195 ticks). All are listed in the spec with fallbacks; none changes the design.</li>
+    <li><strong>Three design calls</strong> are flagged for a decision: whether Lua may make an item fresher than new (the engine's internal path can, the Lua path cannot), how slow watchers are phased on the ring, and whether a burner refuels before or after the draw.</li>
+    <li><strong>The writeup itself</strong> (plain text, about 4300 words) is the document Rseding asked for; every benchmark placeholder is now filled.</li>
+  </ul>
+</section>
+
+<section id="how-this-was-produced">
+  <h2><small>11</small>How this was produced</h2>
+  <p>Built 1 to 3 November 2026. Everything below is in the repository at <a href="https://github.com/danbopes/composed-machines">github.com/danbopes/composed-machines</a>:</p>
+  <ul>
+    <li><strong>Research</strong> (<a href="https://github.com/danbopes/composed-machines/tree/main/research"><code>research/</code></a>): 86 forum threads catalogued and 65 read in full, with developer quotes verbatim; 30 modding-help threads; the mods' own GitHub issue trackers swept with the GitHub CLI, every finding re-opened and verified; a local library of hundreds of mods, the nine Pyanodons mods and their source, the 2.0 and 2.1 changelogs and the 2.1.24 API reference.</li>
+    <li><strong>Engine facts</strong>: from the public API and prototype references, the changelogs, Wube developers' public descriptions of the update loop, and the game's own per-class benchmark timers. Eight details the proposal could not verify from outside are marked as such in the specification, each with a fallback.</li>
+    <li><strong>Model</strong> (<a href="https://github.com/danbopes/composed-machines/tree/main/model"><code>model/</code></a>): a C++17 program of about 2000 lines, four architectures plus the v2 axes, identical checksums, run on a Ryzen 9800X3D under g++ 13 and clang 18.</li>
+    <li><strong>Reference mod</strong> (<a href="https://github.com/danbopes/composed-machines/tree/main/mod/component-lab"><code>mod/component-lab/</code></a>, <a href="https://github.com/danbopes/composed-machines/tree/main/harness"><code>harness/</code></a>): a Lua library plus sixteen entities and 299 harness tests on a headless 2.1.24 server, with two adversarial reviews.</li>
+    <li><strong>Benchmarks</strong> (<a href="https://github.com/danbopes/composed-machines/tree/main/bench"><code>bench/</code></a>): the game's own <code>--benchmark</code> mode with per-class timers, pinned to four cores, 3600 ticks, 3 to 5 runs; a native matrix at 2k and 20k, every test entity next to its native comparison and the shipped workaround where one exists, five of mulark's public benchmark maps (credit: mulark and the map authors), and three Pyanodons saves.</li>
+    <li><strong>Documents</strong>: the <a href="https://github.com/danbopes/composed-machines/blob/main/docs/WRITEUP.md">writeup</a>, the <a href="https://github.com/danbopes/composed-machines/blob/main/docs/SPEC.md">v1 specification</a>, the <a href="https://github.com/danbopes/composed-machines/blob/main/docs/V2-PARTS.md">parts beyond v1</a>, and the sixteen test entities (<a href="https://github.com/danbopes/composed-machines/blob/main/docs/ENTITIES.md">1 to 8</a>, <a href="https://github.com/danbopes/composed-machines/blob/main/docs/TEST-ENTITIES-2.md">9 to 16</a>).</li>
+  </ul>
+  <p class="note">Forum sources: "Divorcing behavior from entities" (2018), "Make the API less rigid" (2015), "Non-machine with possible input, output, module and fuel inventories" (2024), "Packed Entity Prototype" (2026), and the "Won't implement" subforum, all in the Factorio forums' modding sections. Numbers in this page are reproducible from the files named in each caption.</p>
+</section>
+
+</div></main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(function () {
+  var css = getComputedStyle(document.documentElement);
+  function tok(n) { return css.getPropertyValue(n).trim(); }
+  var tip = document.getElementById('tip');
+  function showTip(e, text) { tip.textContent = text; tip.hidden = false; tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; }
+  function hideTip() { tip.hidden = true; }
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs, parent) { var n = document.createElementNS(NS, name); for (var k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; }
+  function text(parent, x, y, s, attrs) { var t = el('text', Object.assign({ x: x, y: y, 'font-family': 'IBM Plex Sans, system-ui, sans-serif', 'font-size': 13, fill: tok('--fg') }, attrs || {}), parent); t.textContent = s; return t; }
+
+  /* Figure 1: paired horizontal bars, ns per instance per tick (bench/RESULTS.md section b, "whole" column). */
+  var tax = [
+    { name: 'Cold box', native: 15.5, lua: 541.7, vs: 'iron chest + 10 kW interface' },
+    { name: 'Creep collector', native: 49.3, lua: 389.9, vs: 'electric furnace', today: 194.2, todayVs: 'energy interface polled every 60 ticks' },
+    { name: 'Timed converter', native: 100.3, lua: 776.5, vs: 'assembling machine 2' },
+    { name: 'Signal endpoint', native: 14.6, lua: 81.3, vs: 'constant combinator + interface' },
+    { name: 'Signal chest', native: 93.4, lua: 412.5, vs: 'chest + wired combinator' },
+    { name: 'Fluid chest', native: 22.1, lua: 83.3, vs: 'chest + tank + pipe' },
+    { name: 'Fuelled chest', native: 50.8, lua: 151.7, vs: 'chest + burner reactor' },
+    { name: 'Hearth', native: 100.8, lua: 234.3, vs: 'stone furnace + bare reactor' },
+    { name: 'Brazier', native: 53.1, lua: 111.3, vs: 'bare reactor + lamp' },
+    { name: 'Tuned furnace', native: 74.2, lua: 143.3, vs: 'local_effect written once', today: 98.0, todayVs: 'hidden beacon + module swap' },
+    { name: 'Seep derrick', native: 90.2, lua: 149.4, vs: 'chemical plant' },
+    { name: 'Dig site', native: 46.9, lua: 60.4, vs: 'electric furnace' },
+    { name: 'Storehouse', native: 94.1, lua: 114.2, vs: 'two steel chests' },
+    { name: 'Waste-heat smelter', native: 112.7, lua: 122.2, vs: 'electric furnace + heat interface' },
+    { name: 'Slag generator', native: 158.1, lua: 125.0, vs: 'steam engine + stone furnace' },
+    { name: 'Mass driver', native: 97.7, lua: 39.7, vs: 'gear assembler, crafting without pause', today: 45.4, todayVs: '15-tick dispatcher poll' }
+  ];
+  (function drawTax() {
+    var svg = document.getElementById('svg-tax'); if (!svg) return;
+    var W = 720, left = 150, right = 104, top = 8, barH = 14, gap = 2, pad = 6, sepH = 28;
+    var rowOf = function (d) { return pad + (d.today ? 3 : 2) * (barH + gap) + 4; };
+    var ys = [], y = top;
+    tax.forEach(function (d) { if (d.sep) y += sepH; ys.push(y); y += rowOf(d); });
+    var plotBottom = y, H = plotBottom + 30; svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var max = 800, sx = function (v) { return left + (v / max) * (W - left - right); };
+    var mono = { 'font-size': 12, fill: tok('--muted'), 'font-family': 'IBM Plex Mono, monospace' };
+    [0, 200, 400, 600, 800].forEach(function (v) {
+      el('line', { x1: sx(v), x2: sx(v), y1: top, y2: plotBottom, stroke: tok('--grid'), 'stroke-width': 1 }, svg);
+      text(svg, sx(v), H - 8, String(v), Object.assign({ 'text-anchor': 'middle' }, mono));
+    });
+    text(svg, W - right + 20, H - 8, 'ns', Object.assign({ 'text-anchor': 'start' }, mono));
+    var fmt = function (r) { return r >= 10 ? Math.round(r) : r.toFixed(1); };
+    tax.forEach(function (d, i) {
+      var y = ys[i], rh = rowOf(d);
+      if (d.sep) {
+        if (i > 0) el('line', { x1: 0, x2: W, y1: y - sepH + 6, y2: y - sepH + 6, stroke: tok('--rule'), 'stroke-width': 1, 'stroke-dasharray': '4 3' }, svg);
+        text(svg, 0, y - 8, d.sep.toUpperCase(), { 'font-size': 11, fill: tok('--muted'), 'letter-spacing': '0.08em' });
+      }
+      text(svg, left - 10, y + rh / 2 + 4, d.name, { 'text-anchor': 'end', 'font-size': 14 });
+      var series = [['native', tok('--series-1'), 'Native (' + d.vs + ')'], ['lua', tok('--series-2'), 'Lua emulation of the proposed type']];
+      if (d.today) series.push(['today', tok('--series-3'), 'Shipped workaround (' + d.todayVs + ')']);
+      series.forEach(function (s, j) {
+        var v = d[s[0]], by = y + pad + j * (barH + gap), w = Math.max(2, sx(v) - sx(0));
+        el('rect', { x: sx(0), y: by, width: w, height: barH, rx: 4, fill: s[1], 'class': 'bar' }, svg);
+        var label = s[0] === 'native' ? Math.round(v) + ' ns' : Math.round(v) + ' ns  (' + fmt(v / d.native) + 'x)';
+        text(svg, sx(v) + 6, by + barH - 3, label, Object.assign({}, mono));
+        var hit = el('rect', { x: sx(0), y: by - 1, width: W - left - right, height: barH + 2, fill: 'transparent' }, svg);
+        hit.addEventListener('mousemove', function (e) { showTip(e, s[2] + ': ' + v.toFixed(1) + ' ns per instance per tick'); });
+        hit.addEventListener('mouseleave', hideTip);
+      });
+    });
+  })();
+
+  /* Figure 2: grouped bars, ratio to static (model/RESULTS.md, g++ medians; C is the midpoint of the reported range). */
+  var model = [
+    { n: '10k', B: 1.099, D: 1.007, C: 2.25 },
+    { n: '100k', B: 1.047, D: 0.998, C: 2.30 },
+    { n: '1M', B: 1.098, D: 1.010, C: 2.90 }
+  ];
+  (function drawModel() {
+    var svg = document.getElementById('svg-model'); if (!svg) return;
+    var W = 720, H = 300, left = 56, right = 16, top = 12, bottom = 40;
+    var max = 3.2, ph = H - top - bottom, pw = W - left - right;
+    var sy = function (v) { return top + ph - (v / max) * ph; };
+    [0, 0.5, 1, 1.5, 2, 2.5, 3].forEach(function (v) {
+      el('line', { x1: left, x2: W - right, y1: sy(v), y2: sy(v), stroke: v === 1 ? tok('--muted') : tok('--grid'), 'stroke-width': 1, 'stroke-dasharray': v === 1 ? '4 3' : '' }, svg);
+      text(svg, left - 8, sy(v) + 4, v.toFixed(1) + 'x', { 'text-anchor': 'end', 'font-size': 12, fill: tok('--muted'), 'font-family': 'IBM Plex Mono, monospace' });
+    });
+    var groupW = pw / model.length, barW = 44, gap = 2;
+    var series = [['B', tok('--series-1'), 'Composed, pointer-checked'], ['D', tok('--series-3'), 'Composed, templated (proposal)'], ['C', tok('--series-2'), 'Runtime component system']];
+    model.forEach(function (g, i) {
+      var cx = left + groupW * (i + 0.5), x0 = cx - (3 * barW + 2 * gap) / 2;
+      text(svg, cx, H - 14, g.n + ' entities', { 'text-anchor': 'middle', 'font-size': 13, fill: tok('--muted') });
+      series.forEach(function (s, j) {
+        var v = g[s[0]], x = x0 + j * (barW + gap), y = sy(v);
+        el('rect', { x: x, y: y, width: barW, height: sy(0) - y, rx: 4, fill: s[1], 'class': 'bar' }, svg);
+        text(svg, x + barW / 2, y - 5, v.toFixed(2), { 'text-anchor': 'middle', 'font-size': 12, 'font-family': 'IBM Plex Mono, monospace', fill: tok('--muted') });
+        var hit = el('rect', { x: x, y: top, width: barW, height: ph, fill: 'transparent' }, svg);
+        hit.addEventListener('mousemove', function (e) { showTip(e, s[2] + ' at ' + g.n + ': ' + v.toFixed(2) + 'x static'); });
+        hit.addEventListener('mouseleave', hideTip);
+      });
+    });
+  })();
+
+  /* Figure 3: stacked horizontal bars, ms per update (bench/RESULTS.md section d, best run). */
+  var py = [
+    { name: 'pY 134', entity: 1.807, lua: 0.998 + 0.756, whole: 6.118 },
+    { name: 'pY Fixed', entity: 1.686, lua: 1.116 + 0.829, whole: 6.255 },
+    { name: 'A2 Fixed', entity: 0.602, lua: 0.293 + 0.629, whole: 2.223 }
+  ];
+  (function drawPy() {
+    var svg = document.getElementById('svg-py'); if (!svg) return;
+    var W = 720, left = 96, right = 70, top = 10, rowH = 54, barH = 22;
+    var H = top + py.length * rowH + 30; svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var max = 7, sx = function (v) { return left + (v / max) * (W - left - right); };
+    [0, 1, 2, 3, 4, 5, 6, 7].forEach(function (v) {
+      el('line', { x1: sx(v), x2: sx(v), y1: top, y2: top + py.length * rowH, stroke: tok('--grid'), 'stroke-width': 1 }, svg);
+      text(svg, sx(v), H - 8, String(v), { 'text-anchor': 'middle', 'font-size': 12, fill: tok('--muted'), 'font-family': 'IBM Plex Mono, monospace' });
+    });
+    text(svg, W - right + 4, H - 8, 'ms', { 'text-anchor': 'start', 'font-size': 12, fill: tok('--muted'), 'font-family': 'IBM Plex Mono, monospace' });
+    py.forEach(function (d, i) {
+      var y = top + i * rowH + (rowH - barH) / 2;
+      text(svg, left - 10, y + barH / 2 + 4, d.name, { 'text-anchor': 'end', 'font-size': 14 });
+      var segs = [['entity', d.entity, tok('--series-1'), 'Entity update'], ['lua', d.lua, tok('--series-2'), 'Lua (script + GC)'], ['other', d.whole - d.entity - d.lua, tok('--muted'), 'Everything else']];
+      var x = sx(0);
+      segs.forEach(function (s, j) {
+        var w = Math.max(0, sx(s[1]) - sx(0) - (j < 2 ? 2 : 0));
+        var r = el('rect', { x: x, y: y, width: w, height: barH, rx: j === 2 ? 4 : 0, fill: s[2], 'class': 'bar' }, svg);
+        var pct = Math.round(100 * s[1] / d.whole);
+        if (w > 44) text(svg, x + w / 2, y + barH / 2 + 4, pct + '%', { 'text-anchor': 'middle', 'font-size': 12, 'font-family': 'IBM Plex Mono, monospace', fill: j === 2 ? tok('--bg') : '#ffffff' });
+        r.addEventListener('mousemove', function (e) { showTip(e, d.name + ' ' + s[3] + ': ' + s[1].toFixed(2) + ' ms (' + pct + '%)'); });
+        r.addEventListener('mouseleave', hideTip);
+        x += w + 2;
+      });
+      text(svg, sx(d.whole) + 6, y + barH / 2 + 4, d.whole.toFixed(2) + ' ms', { 'font-size': 12, 'font-family': 'IBM Plex Mono, monospace', fill: tok('--muted') });
+    });
+  })();
+
+  /* Figure 4: full conversions out of 189 after each stage (V2-PARTS.md section 5). */
+  var cov = [ { name: 'v1', v: 22 }, { name: 'after v2', v: 68 }, { name: 'after v3', v: 73 } ];
+  (function drawCov() {
+    var svg = document.getElementById('svg-cov'); if (!svg) return;
+    var W = 720, left = 90, right = 70, top = 8, rowH = 40, barH = 18;
+    var H = top + cov.length * rowH + 26; svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var max = 189, sx = function (v) { return left + (v / max) * (W - left - right); };
+    [0, 50, 100, 150, 189].forEach(function (v) {
+      el('line', { x1: sx(v), x2: sx(v), y1: top, y2: top + cov.length * rowH, stroke: tok('--grid'), 'stroke-width': 1 }, svg);
+      text(svg, sx(v), H - 6, String(v), { 'text-anchor': 'middle', 'font-size': 12, fill: tok('--muted'), 'font-family': 'IBM Plex Mono, monospace' });
+    });
+    cov.forEach(function (d, i) {
+      var y = top + i * rowH + (rowH - barH) / 2;
+      text(svg, left - 10, y + barH / 2 + 4, d.name, { 'text-anchor': 'end', 'font-size': 14 });
+      var r = el('rect', { x: sx(0), y: y, width: sx(d.v) - sx(0), height: barH, rx: 4, fill: i === 0 ? tok('--series-1') : tok('--series-3'), 'class': 'bar' }, svg);
+      text(svg, sx(d.v) + 6, y + barH / 2 + 4, d.v + ' of 189  (' + Math.round(100 * d.v / 189) + '%)', { 'font-size': 12, 'font-family': 'IBM Plex Mono, monospace', fill: tok('--muted') });
+      r.addEventListener('mousemove', function (e) { showTip(e, d.name + ': ' + d.v + ' buildings convert fully'); });
+      r.addEventListener('mouseleave', hideTip);
+    });
+  })();
+})();
+</script>
+
+</body>
+</html>
