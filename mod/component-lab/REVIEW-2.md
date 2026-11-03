@@ -1,10 +1,10 @@
-# component-lab adversarial review, second pass (2026-11-02)
+# component-lab adversarial review 2 (2026-11-02)
 
 Scope: the eight TEST-ENTITIES-2 entities (`cl-rotating-chest`, `cl-brazier`, `cl-hearth`,
 `cl-creep-collector`, `cl-tuned-furnace`, `cl-mass-driver`, `cl-slag-generator`,
 `cl-waste-heat-smelter`): prototype files, entity scripts, suites. Also the library additions listed
-under "Second pass additions" in README.md and "What integration changed (second pass)" in STATUS.md.
-Checked against TEST-ENTITIES-2.md, V2-PARTS.md 1.1-1.4 and the first-pass REVIEW.md.
+under "Library parts added for the later entities" in README.md and "What integration changed" in STATUS.md.
+Checked against TEST-ENTITIES-2.md, V2-PARTS.md 1.1-1.4 and REVIEW.md (the review of the earlier entities).
 
 Probes ran on a fresh 2.1.24 map from `component/mod/ws/review` (RCON 27200):
 `fh test component-lab --fresh --keep --filter zz:`, then `fh rcon --project component-lab file <probe>.lua`.
@@ -44,7 +44,7 @@ For the same position and direction, `surface.can_place_entity` returns **false*
 ### H2. Any inserter whose pickup tile is a brazier drains its fuel through the fuel door (confirmed)
 
 `prototypes/entities/cl-brazier.lua:15` puts `fuel_proxy_offset = true` on the core's only tile.
-A proxy-container is a two-way door (first-pass gap 8). The core is a `simple-entity-with-owner` with no
+A proxy-container is a two-way door (gap 8). The core is a `simple-entity-with-owner` with no
 inventory, so an inserter picking up from the brazier tile picks from the proxy, which means from the
 reactor's fuel slot. A native burner never gives fuel to an inserter; inserters only take burnt results.
 
@@ -108,9 +108,9 @@ and a burner inserter between them dropping north onto the door. After 274 ticks
 Gap 34's text ("takes fuel only on its door tile") understates it: the door tile also refuses everything
 else.
 
-### M3. Eight more fixture init hooks: the first-pass M6 is unresolved and now twice as large (confirmed)
+### M3. Eight more fixture init hooks: REVIEW.md M6 is unresolved and now twice as large (confirmed)
 
-Second-pass hooks: `cl-brazier.lua:150`, `cl-hearth.lua:195`, `cl-creep-collector.lua:332`,
+Hooks of these eight entities: `cl-brazier.lua:150`, `cl-hearth.lua:195`, `cl-creep-collector.lua:332`,
 `cl-tuned-furnace.lua:231`, `cl-mass-driver.lua:303`, `cl-slag-generator.lua:212`,
 `cl-waste-heat-smelter.lua:118`, `cl-rotating-chest.lua:234`. Each runs from `on_init` **and**
 `on_configuration_changed`. Each `destroy()`s every non-character entity in a fixed area:
@@ -136,14 +136,14 @@ Each also holds `game.speed = 1000`.
 **Fix.** As M6 recommended: arm fixtures only through a remote the harness calls, and never from
 `on_configuration_changed`. `make_save.py` then does not call it.
 
-### M4. Seven new deliberately failing tests: the first-pass M9 is unresolved and worse
+### M4. Seven new deliberately failing tests: REVIEW.md M9 is unresolved and worse
 
 STATUS: 9 failing on purpose, 7 of them new (`cl-brazier.lua:278`, `cl-hearth.lua:298`,
 `cl-mass-driver.lua:290`, `cl-slag-generator.lua:262`, `cl-tuned-furnace.lua:257`,
 `cl-waste-heat-smelter.lua:162`, `:176`). `fh test component-lab` therefore never exits 0, and a real
 regression shows up only as "10 failed instead of 9".
 
-The pass is not even consistent with itself. `cl-rotating-chest` (3 KNOWN-LIMITs) and
+The set is not even consistent with itself. `cl-rotating-chest` (3 KNOWN-LIMITs) and
 `cl-creep-collector` assert the limit and pass, which is what M9 asked for.
 
 **Fix.** Rewrite the seven to assert the limited behaviour and pass. A change to the limit then fails.
@@ -197,7 +197,7 @@ products, so nothing is lost) and move the door inside, as the passive shell doe
 
 `cl-brazier.lua:208,212`, `cl-hearth.lua:173,218,221`, `cl-creep-collector.lua:79-101,117` and
 `cl-slag-generator.lua:45,70` use `rec:schedule(n)`. Only `cl-tuned-furnace` uses `schedule_phase`, the
-SPEC 3.4 helper the first pass added for exactly this.
+SPEC 3.4 helper the library added for the earlier entities for exactly this.
 
 **What fails.** A bench build places all 2000 cells in one `/sc` tick, so 2000 hearths land in one
 bucket every 20 ticks. The same goes for any blueprint pasted by a player. The mean in `report.py` is
@@ -247,7 +247,7 @@ column. STATUS says it has no cell. Gap 35 (the shell is updatable) is therefore
 
 ---
 
-## Library changes in this pass: checked, no defect found
+## Library changes for these entities: checked, no defect found
 
 - `rotatable()` (connectionless fluid box), `component.CLEAR`, the passive shell
   (`no-automated-item-*` flags), `recipe_results` dropping energy and heat products, `eei_producer`,

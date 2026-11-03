@@ -1,16 +1,16 @@
-# Second component pass: eight entities from the forum and GitHub sweeps
+# Eight more test entities: designs from the forum and GitHub sweeps
 
 > Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.
 
 Draft, 2026-11-02. Each entity is a thing a mod author asked for or gave up on, written first as it would look in the proposed API
 (`SPEC.md` v1; `V2-PARTS.md` where a v2 part is needed), then as `component-lab` has to fake it today, with the
 assertions the harness makes and the native entity it is benchmarked against. Builders follow the same
-conventions as the first pass (`ENTITIES.md`): own three files, own workspace, no edits to the library; a limit the
+conventions as `ENTITIES.md`: own three files, own workspace, no edits to the library; a limit the
 emulation cannot cross is a named `KNOWN-LIMIT` test, not a silent skip. Each builder also writes the two
 benchmark cells (`bench/builds/<name>.lua` and `bench/builds/native-<name>.lua`) in the `CELL = {w, h, place}`
 form of the existing files, and the integrator registers them in `make_save.py`.
 
-What this pass adds over the first: three shapes the first pass did not touch (an always-burning S3, a
+What these eight add over the first eight: three shapes the earlier set did not touch (an always-burning S3, a
 rotatable S0, a signal-bound setting), two v2 parts emulated so the status quo can be measured (generation,
 heat output), a trigger, and the two events most asked for on the forums (power/fuel state, cycle finished
 with a script-chosen job).

@@ -28,7 +28,7 @@ NATIVE_MATRIX = sorted(CELL_VARIANTS | {"chests"})
 # comparison is an existing matrix variant it is listed as well.
 COMPOSED = ["cl-fluid-chest", "cl-signal-chest", "cl-fuelled-chest", "cl-cold-box",
             "cl-timed-converter", "cl-seep-derrick", "cl-dig-site", "cl-signal-endpoint",
-            # Second pass (../docs/TEST-ENTITIES-2.md).
+            # The eight later entities (../docs/TEST-ENTITIES-2.md).
             "cl-hearth", "cl-brazier", "cl-creep-collector", "cl-rotating-chest",
             "cl-slag-generator", "cl-waste-heat-smelter", "cl-mass-driver", "cl-tuned-furnace"]
 PAIRS = {

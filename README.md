@@ -18,7 +18,7 @@ There are two halves:
   five public benchmark maps by mulark, and three large Pyanodon's saves.
 - **mod/** and **harness/**: `component-lab`, the Lua reference mod that
   builds those sixteen entities from the proposed prototype format, and its
-  297-test harness suite (288 pass; 9 fail on purpose and document an
+  299-test harness suite (288 pass; 11 fail on purpose and document an
   emulation limit each).
 - **model/**: one C++17 program that runs a Factorio-like tick (chests,
   inserters, furnaces and assemblers on shared electric networks) under several
@@ -67,9 +67,9 @@ What this shows:
   5-10 ms. The per-instance figures use the mean, which spreads those spikes
   over all ticks.
 
-### Second pass: eight designs taken from forum and GitHub requests
+### Eight designs taken from forum and GitHub requests
 
-Same method, 3 runs per save instead of 5. Specs in `docs/TEST-ENTITIES-2.md`.
+Same method, 3 runs per save. Specs in `docs/TEST-ENTITIES-2.md`.
 Where a shipped mod builds the same thing another way (a polled energy
 interface, an every-tick dispatcher, a hidden beacon with module swaps), that
 rig is a third column.
@@ -97,7 +97,7 @@ What this adds:
   billed to the `AssemblingMachine` column, not to `scriptUpdate`. The creep
   collector's harvest is 355 ns per instance there while `scriptUpdate` reads
   7; every 120 ticks all 2000 shells finish together in a 78 ms tick. This is
-  the likely source of the first pass's unexplained assembler-column gap on
+  the likely source of the unexplained assembler-column gap on
   the dig site and the seep derrick. Read the two columns together.
 - A recipe-less assembler shell never leaves the update list: the rotating
   storehouse runs no Lua at all and still costs 18 ns per instance, the same
@@ -325,7 +325,7 @@ documents it; `REVIEW.md` and `REVIEW-2.md` are the two adversarial reviews.
 The suites in `harness/suites/component-lab/` run through the same harness
 (`fh test component-lab --fresh`, from a project directory holding
 `harness/component-lab.json` as `projects/component-lab.json`) on a headless
-2.1.24 server: 297 tests, 288 pass, 9 fail on purpose.
+2.1.24 server: 299 tests, 288 pass, 11 fail on purpose.
 
 ## Hardware and conditions
 
@@ -367,10 +367,10 @@ The suites in `harness/suites/component-lab/` run through the same harness
 - `bench/RESULTS.notes.md` (appended to `RESULTS.md`) still contains one
   earlier bullet saying the pY runs had not happened yet; the pY paragraph at
   its end and section (d) supersede it.
-- **The second pass ran 3 times per save, not 5.** Spreads were 0.1-17%
+- **The eight later designs ran 3 times per save, not 5.** Spreads were 0.1-17%
   (native-cl-brazier 17.2%, native-cl-waste-heat-smelter 8.5%, the rest 7.6%
-  or less). The empty baseline rerun in that pass had a 31% spread, but its
-  best run (0.107 ms) matched the first pass (0.106); the first-pass rows
+  or less). The empty baseline rerun with them had a 31% spread, but its
+  best run (0.107 ms) matched the earlier one (0.106); the earlier rows
   moved by 0.5 ns or less.
 
 ## Layout

@@ -10,7 +10,7 @@ component.define{
   energy_usage = "400kW",
   inventories = {
     -- Outside the shell's box: an inserter reaching into a process shell takes
-    -- from the shell, not from a proxy on that tile (README, second pass facts).
+    -- from the shell, not from a proxy on that tile (README, facts for the later entities).
     {name = "spoils", role = "output", size = 4, proxy_offset = {2, 0}},
   },
   process = {cycle_time = 2, start = "script", consume_at = "script"},

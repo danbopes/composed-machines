@@ -168,7 +168,7 @@ Module-level: `runtime.schedule(unit_number, tick)`, `runtime.raise(entity, flag
 `runtime.set_status(entity, name, opts)`, `runtime.mine(entity, inventory)`
 (script mining with hidden contents), `runtime.tag_blueprint(bp, mapping)`.
 
-## Second pass additions (2026-11-02)
+## Library parts added for the later entities
 
 Added for the `TEST-ENTITIES-2.md` entities; each is exercised by a `lib:` test
 in `_lib.lua` against the `cl-libtest-rotor`, `cl-libtest-rotor-long`,

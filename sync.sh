@@ -95,7 +95,7 @@ sanitize() {
   sed -i -E -e "s#EntityOrderList<[^>]*>::update#the engine's per-type update loop#g; s#EntityOrderList#per-type update list#g" "$m/model.cpp"
 
   local note='> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.'
-  sed -i -E 's#conventions as `TEST-ENTITIES\.md`#conventions as the first pass (`ENTITIES.md`)#' "$d/TEST-ENTITIES-2.md"
+  sed -i -E 's#conventions as `TEST-ENTITIES\.md`#conventions as `ENTITIES.md`#' "$d/TEST-ENTITIES-2.md"
   for f in "$d/ENTITIES.md" "$d/TEST-ENTITIES-2.md"; do
     sed -i -E \
       -e 's#^Private\. Eight entities#Eight entities#' \

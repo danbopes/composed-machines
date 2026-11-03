@@ -250,6 +250,45 @@ test("cl-dig-site: KNOWN-LIMIT rig: an inserter must not pick from food (inserte
     "validMachinePickupTargetInternal per inventory (fish taken: " .. (in_chest + held) .. ")")
 end)
 
+test("cl-dig-site: KNOWN-LIMIT wires cannot read the food (it lives in a hidden container)", function()
+  for _, n in ipairs({NAME .. "-inv-food", NAME .. "-proxy-food"}) do
+    local p = prototypes.entity[n]
+    assert_true(p.selectable_in_game == false and p.flags["not-selectable-in-game"],
+      n .. " is not selectable, so a player cannot wire the food directly")
+  end
+  local r = rig("wired")
+  local u = r.unit_number
+  assert_true(r.core.get_control_behavior().circuit_read_contents, "shell reads contents")
+  assert_eq(food(u).get_item_count("raw-fish"), 6, "food holds 6 fish")
+  local net = {}
+  for _, sig in pairs(r.pole.get_signals(defines.wire_connector_id.circuit_red) or {}) do
+    net[sig.signal.name] = sig.count
+  end
+  assert_eq(net["copper-plate"], 7, "the wire has propagated: the native chest on it reads 7 copper (tick " .. game.tick .. ")")
+  assert_eq(net["raw-fish"], 6,
+    "EMULATION LIMIT: the shell's read-contents sees only the assembler's own inventories and the food sits in a " ..
+    "hidden, unselectable container, so no wire can read it; the native type's circuit_outputs = \"contents\" " ..
+    "would put the food on the network (raw-fish on the wire: " .. tostring(net["raw-fish"]) .. ")")
+end)
+
+test("cl-dig-site: KNOWN-LIMIT status follows the parts only at the next pass (up to 61 ticks late)", function()
+  local core, u = build({modules = "cl-creature-slow", fish = 5})
+  local inv = ore_inv(u)
+  for i = 1, #inv do inv[i].set_stack{name = "iron-ore", count = 50} end
+  pass(u)
+  assert_eq(cl("record", u).status, "full_output", "idle on a full output")
+  food(u).clear()
+  local failing = cl("call", u, "check_conditions")
+  assert_eq(failing and failing.status, "no_ingredients", "the conditions already say no_ingredients this tick")
+  local rec = cl("record", u)
+  assert_true(rec.next_due > game.tick and rec.next_due <= game.tick + 61,
+    "the next pass is due within 61 ticks (in " .. (rec.next_due - game.tick) .. ")")
+  assert_eq(rec.status, "no_ingredients",
+    "EMULATION LIMIT: custom_status is written only by the 61-tick pass, so the shell still shows " ..
+    tostring(rec.status) .. " (" .. tostring(core.custom_status and core.custom_status.label[1]) .. ") after the " ..
+    "food is gone; the native type evaluates its conditions in its own update and reports no_ingredients at once")
+end)
+
 -- ---- blueprint, ghost requests, removal, clone ----------------------------
 
 local function blueprint_of(s, pos)

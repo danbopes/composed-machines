@@ -59,7 +59,7 @@ component.define{
   events = {power_state_changed = true},
 }
 
--- Second-pass parts: a passive rotatable shell with two doors to one inventory,
+-- Parts added for the later entities: a passive rotatable shell with two doors to one inventory,
 -- an always-burning shell carrying the v2 generation and heat parts, and a
 -- part-only burner on a simple-entity-with-owner core.
 component.define{

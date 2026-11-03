@@ -231,6 +231,21 @@ local function rig_site(index, opts)
     info.chest = chest
     info.inserter = ins
   end
+  -- The shell reads its contents onto a red wire next to a native chest on the
+  -- same network, so the suite can tell "the wire carries nothing yet" apart
+  -- from "the shell does not see the hidden food".
+  if opts.wire then
+    local red = defines.wire_connector_id.circuit_red
+    local pole = surface.create_entity{name = "medium-electric-pole", position = {cx - 3, cy + 3}, force = "player"}
+    local chest = surface.create_entity{name = "wooden-chest", position = {cx - 3, cy + 5}, force = "player"}
+    chest.insert{name = "copper-plate", count = 7}
+    core.get_wire_connector(red, true).connect_to(pole.get_wire_connector(red, true), false)
+    chest.get_wire_connector(red, true).connect_to(pole.get_wire_connector(red, true), false)
+    local cb = core.get_or_create_control_behavior()
+    cb.circuit_read_contents = true
+    info.pole = pole
+    info.control_chest = chest
+  end
   return info
 end
 
@@ -248,6 +263,7 @@ local function build_rigs()
       inserter = {side = 1, inventory = "ore", into_site = false, site_items = {name = "iron-ore", count = 20}}}),
     food_out = rig_site(6, {ore = 1000,
       inserter = {side = -1, inventory = "food", into_site = false, site_items = {name = "raw-fish", count = 20}}}),
+    wired = rig_site(7, {fish = 6, ore = 1000, wire = true}),
   }
 end
 

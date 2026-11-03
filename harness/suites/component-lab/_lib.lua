@@ -356,7 +356,7 @@ test("lib: review H2 a subscriber may remove the machine from its own event", fu
   assert_true(ok, "parts torn down (" .. tostring(key) .. ")")
 end)
 
--- Second-pass library parts (README "Second pass additions").
+-- Library parts added for the later entities (README, same heading).
 
 test("lib: v2 parts generate their prototypes and shapes", function()
   for _, name in ipairs({"cl-libtest-rotor-proxy-main", "cl-libtest-hearth-burner", "cl-libtest-hearth-proxy-fuel",
