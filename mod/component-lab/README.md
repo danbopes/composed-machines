@@ -1,7 +1,7 @@
 # component-lab: builder notes
 
 Private test mod. It emulates the `composed-machine` type from
-the proposal specification (not included here) with native shells plus hidden parts (SPEC section 12),
+`../../docs/SPEC.md` with native shells plus hidden parts (SPEC section 12),
 so each test entity in `../../docs/ENTITIES.md` can be asserted and
 benchmarked against native entities.
 

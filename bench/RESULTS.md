@@ -147,7 +147,7 @@ Other script-relevant columns (best run, ms/tick):
 | pY_Season_3_A2_Fixed | 0.293 | 0.629 | 0.045 | 0.192 | 0.160 | 0.177 | 0.096 |
 | pY_Fixed | 1.116 | 0.829 | 1.198 | 0.315 | 0.272 | 0.434 | 0.301 |
 
-Instance counts of the Lua-composed families (a pY mod survey that is not included here), counted by a census mod added for one benchmark tick (saves not modified):
+Instance counts of the Lua-composed families (see ../research/pyanodons.md), counted by a census mod added for one benchmark tick (saves not modified):
 
 | family | part | pY_134 | pY_Season_3_A2_Fixed | pY_Fixed |
 |---|---|---|---|---|

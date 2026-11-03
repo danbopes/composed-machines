@@ -1,6 +1,6 @@
 # The emulated entities (public summary)
 
-> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.
+> Part of the composed-machine proposal. `SPEC.md`, `WRITEUP.txt` and `V2-PARTS.md` are `SPEC.md`, `WRITEUP.md` and `V2-PARTS.md` in this folder; the research notes are in `../research/`.
 
 Sixteen test entities built by the `component-lab` reference mod as today's compound-entity fakes (a native shell plus hidden entities plus a Lua control script), each benchmarked next to a native comparison in `bench/`. The first eight are listed here with their proposed-API parts, what shipped mod or request they stand in for, and the native comparison; the second eight are specified in full in `TEST-ENTITIES-2.md`. The proposal text (the prototype specification) is not part of this repository.
 

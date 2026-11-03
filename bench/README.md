@@ -208,7 +208,7 @@ plus about 40 min of builds if nothing is built yet.
 - `census_save.py <save> [name]` counts entities by prototype in a save. It
   adds `census-mod/` to the save's isolated mod set for one `--benchmark` tick
   and writes `results/<name>.census.json`, with the pY script families from
-  (a pY mod survey that is not included here) grouped. The save is never written. A pY save takes
+  (see ../research/pyanodons.md) grouped. The save is never written. A pY save takes
   about 5 min.
 - Since the project now loads space-age, all component-lab saves (the native
   matrix included) carry base + elevated-rails + quality + space-age + aitest +

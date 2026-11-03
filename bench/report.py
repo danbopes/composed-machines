@@ -158,7 +158,7 @@ def main():
     cens = {n: json.loads((RESULTS / f"{n}.census.json").read_text())
             for n in py if (RESULTS / f"{n}.census.json").exists()}
     if cens:
-        out.append("\nInstance counts of the Lua-composed families (a pY mod survey that is not included here), "
+        out.append("\nInstance counts of the Lua-composed families (see ../research/pyanodons.md), "
                    "counted by a census mod added for one benchmark tick (saves not modified):\n")
         out.append("| family | part | " + " | ".join(cens) + " |")
         out.append("|---|---|" + "---|" * len(cens))

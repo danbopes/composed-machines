@@ -1,6 +1,6 @@
 # Eight more test entities: designs from the forum and GitHub sweeps
 
-> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.
+> Part of the composed-machine proposal. `SPEC.md`, `WRITEUP.txt` and `V2-PARTS.md` are `SPEC.md`, `WRITEUP.md` and `V2-PARTS.md` in this folder; the research notes are in `../research/`.
 
 Draft, 2026-11-02. Each entity is a thing a mod author asked for or gave up on, written first as it would look in the proposed API
 (`SPEC.md` v1; `V2-PARTS.md` where a v2 part is needed), then as `component-lab` has to fake it today, with the

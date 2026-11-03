@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Count entities by prototype name in a save, grouped into the pY script
-families that a pY mod survey (not included here) lists as benchmark targets.
+families that (see ../research/pyanodons.md) lists as benchmark targets.
 
 The save's own mod set is assembled as for run_bench.py, plus the bench-census
 mod (census-mod/), which counts on on_init when Factorio loads the save for a

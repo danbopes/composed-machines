@@ -52,7 +52,7 @@ cp "$comp/design/TEST-ENTITIES-2.md" "$repo/docs/TEST-ENTITIES-2.md"
 # machine, no references to the private notes it was produced alongside.
 sanitize() {
   local b="$repo/bench" d="$repo/docs" m="$repo/model"
-  local gone='a pY mod survey that is not included here'
+  local gone='see ../research/pyanodons.md'
 
   sed -i -E \
     -e 's#"/[^"]*/component/bench/(saves/)#"\1#g' \
@@ -82,7 +82,6 @@ sanitize() {
     -e 's#^They stay private here\.#They are not included in this repository.#' \
     "$b"/README.md "$b"/RESULTS.md "$b"/report.py "$b"/census_save.py "$b"/make_save.py
   # census_save.py's docstring reads "families that <x> lists"
-  sed -i -E "s#families that \\($gone\\) lists#families that a pY mod survey (not included here) lists#" "$b/census_save.py"
 
   sed -i -E \
     -e 's#^This is a private model, not Factorio\.#This is a model, not Factorio.#' \
@@ -94,7 +93,7 @@ sanitize() {
   sed -i -E -e 's#`EntityOrderList` entry#per-type update slot#g' "$m/RESULTS.md"
   sed -i -E -e "s#EntityOrderList<[^>]*>::update#the engine's per-type update loop#g; s#EntityOrderList#per-type update list#g" "$m/model.cpp"
 
-  local note='> Part of the composed-machine benchmarks. References to `SPEC.md`, `WRITEUP.txt`, `V2-PARTS.md` and to research notes point to the proposal text and to the private analysis these numbers were produced alongside; neither is included in this repository.'
+  local note='> Part of the composed-machine proposal. `SPEC.md`, `WRITEUP.txt` and `V2-PARTS.md` are `SPEC.md`, `WRITEUP.md` and `V2-PARTS.md` in this folder; the research notes are in `../research/`.'
   sed -i -E 's#conventions as `TEST-ENTITIES\.md`#conventions as `ENTITIES.md`#' "$d/TEST-ENTITIES-2.md"
   for f in "$d/ENTITIES.md" "$d/TEST-ENTITIES-2.md"; do
     sed -i -E \
@@ -120,7 +119,7 @@ if (( with_mod )); then
   sed -i -E 's#"source": *"[^"]*"#"source": "../mod/component-lab"#' "$repo/harness/component-lab.json"
   rm -f "$repo/mod/README.md" "$repo/harness/README.md"
   sed -i -E \
-    -e 's#`component/design/SPEC\.md`#the proposal specification (not included here)#g' \
+    -e 's#`component/design/SPEC\.md`#`../../docs/SPEC.md`#g' \
     -e 's#`component/design/TEST-ENTITIES\.md`#`../../docs/ENTITIES.md`#g' \
     -e 's#`component/design/TEST-ENTITIES-2\.md`#`../../docs/TEST-ENTITIES-2.md`#g' \
     -e 's#component/design/TEST-ENTITIES-2\.md#../../docs/TEST-ENTITIES-2.md#g' \
